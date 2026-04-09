@@ -124,7 +124,7 @@ def _score_domains(columns: Set[str]) -> Tuple[Optional[str], float, List[str], 
 
     # Confidence is normalized to 0-100 based on the winning domain's own available signals.
     max_score_for_domain = len(DOMAIN_RULES[best_domain]["strong"]) * 10 + len(DOMAIN_RULES[best_domain]["weak"])
-    confidence = (best_score / max_score_for_domain) * 100.0 if max_score_for_domain else 0.0
+    confidence = (best_score / max_score_for_domain) * 1.0 if max_score_for_domain else 0.0
     confidence = round(max(0.0, min(confidence, 100.0)), 1)
 
     return best_domain, confidence, matched_columns, scores
