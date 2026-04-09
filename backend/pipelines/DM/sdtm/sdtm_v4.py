@@ -136,23 +136,51 @@ def calculate_age_years(brthdtc: str, rfstdtc: str) -> Optional[str]:
 def make_ct_lookup(ct_df):
     lut = {}
 
-    # Normalize column names
-    cols = {c.lower(): c for c in ct_df.columns}
+    cols = {str(c).strip().lower(): c for c in ct_df.columns}
 
-    var_col = cols.get("variable") or cols.get("var") or cols.get("column") or cols.get("field")
-    val_col = cols.get("value") or cols.get("code") or cols.get("term")
+    # Support both old and new CT schemas
+    var_col = (
+        cols.get("variable")
+        or cols.get("var")
+        or cols.get("column")
+        or cols.get("field")
+        or cols.get("codelist_name")
+    )
 
-    if var_col is None or val_col is None:
+    src_col = (
+        cols.get("source_value")
+        or cols.get("source")
+        or cols.get("raw_value")
+        or cols.get("value")
+        or cols.get("code")
+        or cols.get("term")
+    )
+
+    std_col = (
+        cols.get("standard_value")
+        or cols.get("standard")
+        or cols.get("mapped_value")
+        or cols.get("target_value")
+        or cols.get("normalized_value")
+        or cols.get("value")
+    )
+
+    if var_col is None or src_col is None or std_col is None:
         raise ValueError(f"CT file missing required columns. Found: {list(ct_df.columns)}")
 
     for _, row in ct_df.iterrows():
         var = str(row[var_col]).strip().upper()
-        val = str(row[val_col]).strip().upper()
+        src = "" if pd.isna(row[src_col]) else str(row[src_col]).strip().upper()
+        std = "" if pd.isna(row[std_col]) else str(row[std_col]).strip().upper()
+
+        if not var:
+            continue
 
         if var not in lut:
-            lut[var] = set()
+            lut[var] = {}
 
-        lut[var].add(val)
+        if src:
+            lut[var][src] = std if std else src
 
     return lut
 
