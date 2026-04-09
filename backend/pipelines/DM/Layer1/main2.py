@@ -109,6 +109,11 @@ def clean_dm(df):
     issues = []
     clean = df.copy()
 
+    # Ensure expected columns exist even if raw CRF does not carry full SDTM-style identifiers
+    for col in ["USUBJID", "STUDYID", "SITEID", "SUBJID", "DOMAIN", "RFSTDTC", "BRTHDTC", "DTHFL", "DTHDTC", "SEX", "AGE", "AGEU", "COUNTRY"]:
+        if col not in clean.columns:
+            clean[col] = None
+
     # Important fix: preserve identifiers like 001 by reading as strings in main()
     for col in TEXT_COLS:
         if col in clean.columns:
@@ -375,12 +380,19 @@ def clean_dm(df):
 
 def main():
     script_dir = Path(__file__).resolve().parent
-    source_csv = script_dir / "dm_source_50_rows.csv"
 
-    if not source_csv.exists():
+    candidates = [
+        script_dir / "dm_source_50_rows.csv",
+        script_dir / "dm_raw_crf_style_50_rows.csv",
+        script_dir / "dm_raw_demo_50_rows.csv",
+        script_dir / "dm_raw.csv",
+    ]
+    source_csv = next((p for p in candidates if p.exists()), None)
+
+    if source_csv is None:
         raise FileNotFoundError(
-            f"Source file not found: {source_csv}\n"
-            f"Place dm_source_50_rows.csv in the same folder as this script."
+            f"No DM source file found in {script_dir}. "
+            f"Tried: {[str(p.name) for p in candidates]}"
         )
 
     # Critical fix: preserve identifier fields exactly as text
