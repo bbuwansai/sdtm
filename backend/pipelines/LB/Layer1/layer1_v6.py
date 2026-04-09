@@ -31,6 +31,11 @@ def upper_clean(v):
 def present(v):
     return v is not None and not pd.isna(v)
 
+def as_text(v):
+    if pd.isna(v):
+        return ""
+    return str(v).strip()
+
 def parse_num(v: Optional[str]):
     if v is None:
         return None
@@ -156,7 +161,7 @@ def main():
     args = parser.parse_args()
 
     base = Path(__file__).resolve().parent
-    rules_path = Path(args.rules) if args.rules else (base / "lb_layer1_rules_v5_1.json")
+    rules_path = Path(args.rules) if args.rules else (base / "lb_layer1_rules_v5.json")
     if not rules_path.exists():
         raise FileNotFoundError(f"Rules JSON not found: {rules_path}")
 
@@ -339,8 +344,8 @@ def main():
             result_num = row.get("RESULT_RAW_PARSED")
         result_qual = row.get("RESULT_QUAL_RAW")
         nd = row.get("NOT_DONE_RAW")
-        nd_reason = row.get("ND_REASON_RAW")
-        comment = row.get("COMMENT_RAW") or ""
+        nd_reason = as_text(row.get("ND_REASON_RAW"))
+        comment = as_text(row.get("COMMENT_RAW"))
         performed_like = (nd != "Y")
         any_result_field = any(present(x) for x in [result_raw, row.get("RESULT_NUM_RAW"), result_char])
         ancillary_present = any(present(x) for x in [row.get("ORIG_UNIT_RAW"), row.get("REF_LOW_RAW"), row.get("REF_HIGH_RAW"), row.get("ABN_FLAG_RAW")])
@@ -376,7 +381,7 @@ def main():
             add_issue(issues, summary, rule_meta, "LB039", idx, row, "NOT_DONE_RAW", nd)
 
         hint_terms = ("CLOTTED", "NOT DONE", "QNS", "INSUFFICIENT", "CANCELLED", "SAMPLE NOT RECEIVED")
-        if nd != "Y" and (present(nd_reason) or any(term in comment for term in hint_terms)) and ((not any_result_field) or ancillary_present):
+        if nd != "Y" and ((nd_reason != "") or any(term in comment for term in hint_terms)) and ((not any_result_field) or ancillary_present):
             add_issue(issues, summary, rule_meta, "LB040", idx, row, "NOT_DONE_RAW", nd)
 
         if nd == "Y":
@@ -387,10 +392,10 @@ def main():
             ])
             if populated:
                 add_issue(issues, summary, rule_meta, "LB041", idx, row, "NOT_DONE_RAW", nd)
-            if nd_reason is None:
+            if nd_reason == "":
                 add_issue(issues, summary, rule_meta, "LB042", idx, row, "ND_REASON_RAW", nd_reason)
 
-        if nd != "Y" and present(nd_reason):
+        if nd != "Y" and nd_reason != "":
             add_issue(issues, summary, rule_meta, "LB043", idx, row, "ND_REASON_RAW", nd_reason)
 
         if numeric is False:
@@ -519,11 +524,11 @@ def main():
         })
     summary_df = pd.DataFrame(summary_rows)
 
-    df.to_csv(outdir / "lb_cleaned_output_v5_1.csv", index=False)
-    issue_df.to_csv(outdir / "lb_issue_log_all_v5_1.csv", index=False)
-    issue_df[issue_df["final_bucket"] == "Human"].to_csv(outdir / "lb_issue_log_human_v5_1.csv", index=False)
-    issue_df[issue_df["final_bucket"] == "SDTM_STANDARDISABLE"].to_csv(outdir / "lb_issue_log_sdtm_standardisable_v5_1.csv", index=False)
-    summary_df.to_csv(outdir / "lb_issue_summary_by_rule_v5_1.csv", index=False)
+    df.to_csv(outdir / "lb_cleaned_output_v5.csv", index=False)
+    issue_df.to_csv(outdir / "lb_issue_log_all_v5.csv", index=False)
+    issue_df[issue_df["final_bucket"] == "Human"].to_csv(outdir / "lb_issue_log_human_v5.csv", index=False)
+    issue_df[issue_df["final_bucket"] == "SDTM_STANDARDISABLE"].to_csv(outdir / "lb_issue_log_sdtm_standardisable_v5.csv", index=False)
+    summary_df.to_csv(outdir / "lb_issue_summary_by_rule_v5.csv", index=False)
 
     print(f"Created outputs in: {outdir}")
     print(f"Input file used: {source}")
