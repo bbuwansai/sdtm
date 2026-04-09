@@ -112,7 +112,7 @@ def detect_domain_from_dataframe(df: pd.DataFrame) -> Dict[str, object]:
 
 
 # Backward-compatible wrapper for the rest of your backend.
-def detect_domain(value) -> Dict[str, object]:
+def detect_domain(value, *args, **kwargs) -> Dict[str, object]:
     if isinstance(value, pd.DataFrame):
         return detect_domain_from_dataframe(value)
     return detect_domain_from_columns(value)
