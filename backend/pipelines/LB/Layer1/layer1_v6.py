@@ -1,4 +1,3 @@
-
 import argparse
 import json
 import re
@@ -161,7 +160,7 @@ def main():
     args = parser.parse_args()
 
     base = Path(__file__).resolve().parent
-            if args.rules:
+    if args.rules:
         rules_path = Path(args.rules)
         candidates = [rules_path]
     else:
