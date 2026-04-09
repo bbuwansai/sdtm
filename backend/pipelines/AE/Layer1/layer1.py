@@ -430,14 +430,14 @@ def main():
         if outcome == "FATAL" and row.get("CANON__AE_SER_DTH_RAW") != "YES" and not has_rule_on_root(idx, "AE_SER_RAW", ["AE015"]):
             add_issue("AE030", idx, row, "AE_OUTCOME_RAW", clean(row.get("RAW__AE_OUTCOME_RAW")))
 
-    allowed_rel = set(cfg["allowed"]["relationship"])
+        allowed_rel = set(cfg["allowed"]["relationship"])
     for idx, row in df.iterrows():
         rawv = clean(row.get("RAW__AE_REL_STUDY_DRUG_RAW"))
-        val = row.get("AE_REL_STUDY_DRUG_RAW")
-        if row.get("AE_PRESENT_ROW") and val is None:
+        val = as_text(row.get("AE_REL_STUDY_DRUG_RAW"))
+        if row.get("AE_PRESENT_ROW") and val == "":
             add_issue("AE031", idx, row, "AE_REL_STUDY_DRUG_RAW", rawv)
             continue
-        if val is None:
+        if val == "":
             continue
         if val in allowed_rel:
             continue
