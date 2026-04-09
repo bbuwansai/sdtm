@@ -1,0 +1,772 @@
+{
+  "input": {
+    "source_csv": "lb_raw_synthetic.csv",
+    "output_dir": "lb_layer1_outputs_v5"
+  },
+  "required_fields_always": [
+    "PROTOCOL_NO",
+    "SITE_NO",
+    "SUBJECT_NO",
+    "SEX_RAW",
+    "AGE_YRS",
+    "LB_PAGE_ID",
+    "LB_LINE_NO",
+    "LAB_SOURCE_RAW",
+    "FORM_NAME",
+    "VISIT_RAW",
+    "VISITNUM_RAW",
+    "VISITDT_RAW",
+    "COLL_DATE_RAW",
+    "COLL_TIME_RAW",
+    "COLL_DTM_RAW",
+    "TEST_PANEL_RAW",
+    "NOT_DONE_RAW",
+    "SAMPLE_ID_RAW"
+  ],
+  "subject_rules": {
+    "age_min": 0,
+    "age_max": 120
+  },
+  "visit_rules": {
+    "expected_visitnum_by_visitname": {
+      "SCREENING": 10,
+      "BASELINE": 10,
+      "WEEK 1": 20,
+      "WEEK 2": 30,
+      "WEEK 4": 40,
+      "UNSCHEDULED": 99
+    }
+  },
+  "unsched_patterns": [
+    "UNSCHED",
+    "UNSCHEDULED",
+    "UNS"
+  ],
+  "form_name_synonyms": [
+    "LOCAL/CENTRAL LAB RESULTS"
+  ],
+  "allowed": {
+    "sex": [
+      "M",
+      "F",
+      "U"
+    ],
+    "yn": [
+      "Y",
+      "N"
+    ],
+    "fasting_values": [
+      "Y",
+      "N"
+    ],
+    "postdose_values": [
+      "PRE-DOSE",
+      "POST-DOSE",
+      "Y",
+      "N"
+    ],
+    "lab_sources": [
+      "CENTRAL",
+      "LOCAL"
+    ],
+    "specimen": [
+      "SERUM",
+      "PLASMA",
+      "BLOOD",
+      "WHOLE BLOOD",
+      "URINE"
+    ],
+    "categorical_results": [
+      "NEGATIVE",
+      "POSITIVE",
+      "TRACE",
+      "NORMAL",
+      "ABNORMAL"
+    ],
+    "result_qualifiers": [
+      "<",
+      ">",
+      "<=",
+      ">="
+    ],
+    "abn_flag": [
+      "L",
+      "LOW",
+      "H",
+      "HIGH",
+      "N",
+      "NORMAL"
+    ],
+    "clin_sig": [
+      "Y",
+      "N"
+    ],
+    "hemolyzed_values": [
+      "Y",
+      "N"
+    ],
+    "repeat_values": [
+      "Y",
+      "N"
+    ]
+  },
+  "rules": {
+    "LB001": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "Required field missing",
+      "basis": "Missing mandatory raw field blocks trustworthy downstream handling."
+    },
+    "LB002": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "PROTOCOL_NO inconsistent within dataset",
+      "basis": "Study-level identifier conflict cannot be standardized safely."
+    },
+    "LB003": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "SEX_RAW invalid",
+      "basis": "Invalid sex value requires source correction."
+    },
+    "LB004": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "SEX_RAW inconsistent within subject",
+      "basis": "Conflicting subject-level sex values require human review."
+    },
+    "LB005": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "AGE_YRS invalid",
+      "basis": "Invalid age requires source correction."
+    },
+    "LB006": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "AGE_YRS inconsistent within subject",
+      "basis": "Conflicting subject-level age values require human review."
+    },
+    "LB007": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "Duplicate LB_PAGE_ID/LB_LINE_NO within subject",
+      "basis": "Conflicting source row identity requires human review."
+    },
+    "LB008": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "FORM_NAME missing",
+      "basis": "Missing source form identifier requires source correction."
+    },
+    "LB009": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "FORM_NAME inconsistent within dataset",
+      "basis": "Conflicting form identity requires human review."
+    },
+    "LB010": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "VISITNUM_RAW inconsistent with VISIT_RAW",
+      "basis": "Visit conflict is not safe to standardize automatically."
+    },
+    "LB011": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "UNSCHED_RAW invalid",
+      "basis": "Invalid unscheduled flag requires source correction."
+    },
+    "LB012": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "UNSCHED_RAW missing",
+      "basis": "Missing unscheduled flag is operationally important and not assumed."
+    },
+    "LB013": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "UNSCHED_RAW contradicts VISIT_RAW",
+      "basis": "Visit/unscheduled contradiction requires human review."
+    },
+    "LB014": {
+      "severity": "WARNING",
+      "bucket": "SDTM_STANDARDISABLE",
+      "description": "VISITDT_RAW valid but non-ISO",
+      "basis": "Date format can be standardized deterministically."
+    },
+    "LB015": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "VISITDT_RAW invalid or impossible",
+      "basis": "Impossible or invalid date cannot be safely standardized."
+    },
+    "LB016": {
+      "severity": "WARNING",
+      "bucket": "SDTM_STANDARDISABLE",
+      "description": "COLL_DATE_RAW valid but non-ISO",
+      "basis": "Date format can be standardized deterministically."
+    },
+    "LB017": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "COLL_DATE_RAW invalid or impossible",
+      "basis": "Impossible or invalid collection date cannot be safely standardized."
+    },
+    "LB018": {
+      "severity": "WARNING",
+      "bucket": "SDTM_STANDARDISABLE",
+      "description": "COLL_TIME_RAW valid but non-standard",
+      "basis": "Time format can be standardized deterministically."
+    },
+    "LB019": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "COLL_TIME_RAW invalid",
+      "basis": "Invalid collection time cannot be safely standardized."
+    },
+    "LB020": {
+      "severity": "WARNING",
+      "bucket": "SDTM_STANDARDISABLE",
+      "description": "COLL_DTM_RAW valid but non-ISO",
+      "basis": "Datetime format can be standardized deterministically."
+    },
+    "LB021": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "COLL_DTM_RAW invalid",
+      "basis": "Invalid datetime cannot be safely standardized."
+    },
+    "LB022": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "COLL_DTM_RAW inconsistent with COLL_DATE_RAW and COLL_TIME_RAW",
+      "basis": "Conflicting date/time/datetime values require human resolution."
+    },
+    "LB023": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "FASTING_RAW missing",
+      "basis": "Missing operational fasting flag should not be assumed."
+    },
+    "LB024": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "FASTING_RAW invalid",
+      "basis": "Invalid fasting flag requires source correction."
+    },
+    "LB025": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "POSTDOSE_RAW missing",
+      "basis": "Missing timing flag should not be assumed."
+    },
+    "LB026": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "POSTDOSE_RAW invalid",
+      "basis": "Invalid timing flag requires source correction."
+    },
+    "LB027": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "LAB_SOURCE_RAW invalid",
+      "basis": "Invalid lab source requires source correction."
+    },
+    "LB028": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "LAB_VENDOR_RAW missing when LAB_SOURCE_RAW present",
+      "basis": "Missing vendor reduces lab traceability and needs source correction."
+    },
+    "LB029": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "Multiple LAB_SOURCE_RAW values for same subject/visit/test",
+      "basis": "Competing source records require human choice."
+    },
+    "LB030": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "TEST_CODE_RAW missing",
+      "basis": "Missing test code blocks safe mapping."
+    },
+    "LB031": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "TEST_NAME_RAW missing",
+      "basis": "Missing test name blocks safe mapping."
+    },
+    "LB032": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "SPECIMEN_RAW missing",
+      "basis": "Missing specimen blocks safe mapping."
+    },
+    "LB033": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "SPECIMEN_RAW invalid",
+      "basis": "Invalid specimen requires source correction."
+    },
+    "LB034": {
+      "severity": "WARNING",
+      "bucket": "SDTM_STANDARDISABLE",
+      "description": "TEST_CODE_RAW not in sponsor catalog",
+      "basis": "Unknown raw code may be standardized later via mapping table."
+    },
+    "LB035": {
+      "severity": "WARNING",
+      "bucket": "SDTM_STANDARDISABLE",
+      "description": "TEST_NAME_RAW not in approved synonym list for TEST_CODE_RAW",
+      "basis": "Approved name/code normalization can be standardized if mapping exists."
+    },
+    "LB036": {
+      "severity": "WARNING",
+      "bucket": "SDTM_STANDARDISABLE",
+      "description": "TEST_PANEL_RAW not in approved panel list for TEST_CODE_RAW",
+      "basis": "Panel naming can be standardized via mapping."
+    },
+    "LB037": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "SPECIMEN_RAW incompatible with TEST_CODE_RAW",
+      "basis": "Test/specimen mismatch is medically meaningful and not auto-fixable."
+    },
+    "LB038": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "Performed-looking row has no result",
+      "basis": "Missing result on performed-looking row requires source review."
+    },
+    "LB039": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "NOT_DONE_RAW invalid",
+      "basis": "Invalid not-done flag requires source correction."
+    },
+    "LB040": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "Likely not-done row not marked as NOT_DONE_RAW=Y",
+      "basis": "Not-done inference requires human confirmation."
+    },
+    "LB041": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "NOT_DONE_RAW=Y but result-related fields are populated",
+      "basis": "Contradictory source data requires human correction."
+    },
+    "LB042": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "ND_REASON_RAW missing when NOT_DONE_RAW=Y",
+      "basis": "Missing not-done reason requires source correction."
+    },
+    "LB043": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "ND_REASON_RAW populated when NOT_DONE_RAW is not Y",
+      "basis": "Not-done reason contradiction requires source review."
+    },
+    "LB044": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "RESULT_QUAL_RAW invalid",
+      "basis": "Invalid qualifier requires source correction."
+    },
+    "LB045": {
+      "severity": "WARNING",
+      "bucket": "SDTM_STANDARDISABLE",
+      "description": "Categorical result only in RESULT_RAW while RESULT_CHAR_RAW missing",
+      "basis": "SDTM can standardize categorical result placement."
+    },
+    "LB046": {
+      "severity": "WARNING",
+      "bucket": "SDTM_STANDARDISABLE",
+      "description": "Categorical result also carries numeric encoding",
+      "basis": "Dual encoding can be standardized deterministically."
+    },
+    "LB047": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "Numeric test has non-numeric RESULT_RAW without valid qualifier",
+      "basis": "Numeric result cannot be interpreted safely."
+    },
+    "LB048": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "ORIG_UNIT_RAW missing for numeric test",
+      "basis": "Missing numeric result unit blocks safe comparison."
+    },
+    "LB049": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "ORIG_UNIT_RAW unexpected for numeric test",
+      "basis": "Unexpected unit requires source clarification."
+    },
+    "LB050": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "REF_UNIT_RAW missing for numeric test",
+      "basis": "Missing reference unit blocks safe comparison."
+    },
+    "LB051": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "ORIG_UNIT_RAW and REF_UNIT_RAW differ",
+      "basis": "Unit mismatch makes range interpretation ambiguous."
+    },
+    "LB052": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "Reference range missing for numeric test",
+      "basis": "Missing range blocks range-based QC."
+    },
+    "LB053": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "Reference range order invalid",
+      "basis": "Bad low/high order is a source-data error."
+    },
+    "LB054": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "ABN_FLAG_RAW invalid",
+      "basis": "Invalid abnormal flag requires source correction."
+    },
+    "LB055": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "ABN_FLAG_RAW missing or inconsistent with result and range",
+      "basis": "Abnormal flag mismatch requires human review."
+    },
+    "LB056": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "CLIN_SIG_RAW invalid",
+      "basis": "Invalid clinical significance flag requires source correction."
+    },
+    "LB057": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "CLIN_SIG_RAW=Y while ABN_FLAG_RAW is normal or missing",
+      "basis": "Clinical significance contradiction requires human review."
+    },
+    "LB058": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "HEMOLYZED_RAW invalid",
+      "basis": "Invalid hemolysis flag requires source correction."
+    },
+    "LB059": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "HEMOLYZED_RAW=Y with reported result",
+      "basis": "Hemolyzed sample with result needs human review."
+    },
+    "LB060": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "REPEAT_RAW invalid",
+      "basis": "Invalid repeat flag requires source correction."
+    },
+    "LB061": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "COMMENT_RAW suggests redraw/repeat but REPEAT_RAW is not Y",
+      "basis": "Repeat/redraw contradiction requires human review."
+    },
+    "LB062": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "Potential duplicate LB record on subject/visit/test/datetime",
+      "basis": "Possible duplicate source records require human decision."
+    },
+    "LB063": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "REPEAT_RAW=Y without companion record",
+      "basis": "Repeat flag without related record requires source review."
+    },
+    "LB064": {
+      "severity": "WARNING",
+      "bucket": "Human",
+      "description": "Reference ranges vary within same test/specimen/source/unit/sex group",
+      "basis": "Unexpected range variability requires human review."
+    }
+  },
+  "test_catalog": {
+    "HGB": {
+      "numeric": true,
+      "allowed_test_names": [
+        "HEMOGLOBIN"
+      ],
+      "panel": [
+        "HEMATOLOGY"
+      ],
+      "specimen": [
+        "BLOOD",
+        "WHOLE BLOOD"
+      ],
+      "orig_units": [
+        "G/DL"
+      ]
+    },
+    "WBC": {
+      "numeric": true,
+      "allowed_test_names": [
+        "WHITE BLOOD CELL COUNT"
+      ],
+      "panel": [
+        "HEMATOLOGY"
+      ],
+      "specimen": [
+        "BLOOD",
+        "WHOLE BLOOD"
+      ],
+      "orig_units": [
+        "10^9/L",
+        "CELLS/UL"
+      ]
+    },
+    "PLT": {
+      "numeric": true,
+      "allowed_test_names": [
+        "PLATELET COUNT"
+      ],
+      "panel": [
+        "HEMATOLOGY"
+      ],
+      "specimen": [
+        "BLOOD",
+        "WHOLE BLOOD"
+      ],
+      "orig_units": [
+        "10^9/L",
+        "CELLS/UL"
+      ]
+    },
+    "PLAT": {
+      "numeric": true,
+      "allowed_test_names": [
+        "PLATELET COUNT"
+      ],
+      "panel": [
+        "HEMATOLOGY"
+      ],
+      "specimen": [
+        "BLOOD",
+        "WHOLE BLOOD"
+      ],
+      "orig_units": [
+        "10^9/L",
+        "CELLS/UL"
+      ]
+    },
+    "ALT": {
+      "numeric": true,
+      "allowed_test_names": [
+        "ALANINE AMINOTRANSFERASE",
+        "ALT (SGPT)"
+      ],
+      "panel": [
+        "CHEMISTRY"
+      ],
+      "specimen": [
+        "SERUM",
+        "PLASMA"
+      ],
+      "orig_units": [
+        "U/L"
+      ]
+    },
+    "AST": {
+      "numeric": true,
+      "allowed_test_names": [
+        "ASPARTATE AMINOTRANSFERASE",
+        "AST (SGOT)"
+      ],
+      "panel": [
+        "CHEMISTRY"
+      ],
+      "specimen": [
+        "SERUM",
+        "PLASMA"
+      ],
+      "orig_units": [
+        "U/L"
+      ]
+    },
+    "BILI": {
+      "numeric": true,
+      "allowed_test_names": [
+        "BILIRUBIN TOTAL"
+      ],
+      "panel": [
+        "CHEMISTRY"
+      ],
+      "specimen": [
+        "SERUM",
+        "PLASMA"
+      ],
+      "orig_units": [
+        "MG/DL",
+        "UMOL/L"
+      ]
+    },
+    "CREAT": {
+      "numeric": true,
+      "allowed_test_names": [
+        "CREATININE"
+      ],
+      "panel": [
+        "CHEMISTRY"
+      ],
+      "specimen": [
+        "SERUM",
+        "PLASMA",
+        "URINE"
+      ],
+      "orig_units": [
+        "MG/DL",
+        "UMOL/L"
+      ]
+    },
+    "GLUC": {
+      "numeric": true,
+      "allowed_test_names": [
+        "GLUCOSE"
+      ],
+      "panel": [
+        "CHEMISTRY"
+      ],
+      "specimen": [
+        "SERUM",
+        "PLASMA"
+      ],
+      "orig_units": [
+        "MG/DL",
+        "MMOL/L"
+      ]
+    },
+    "PT": {
+      "numeric": true,
+      "allowed_test_names": [
+        "PROTHROMBIN TIME"
+      ],
+      "panel": [
+        "COAGULATION"
+      ],
+      "specimen": [
+        "PLASMA"
+      ],
+      "orig_units": [
+        "SEC"
+      ]
+    },
+    "INR": {
+      "numeric": true,
+      "allowed_test_names": [
+        "INR"
+      ],
+      "panel": [
+        "COAGULATION"
+      ],
+      "specimen": [
+        "PLASMA"
+      ],
+      "orig_units": [
+        "RATIO"
+      ]
+    },
+    "HCG": {
+      "numeric": true,
+      "allowed_test_names": [
+        "HCG"
+      ],
+      "panel": [
+        "CHEMISTRY",
+        "PREGNANCY"
+      ],
+      "specimen": [
+        "SERUM",
+        "URINE"
+      ],
+      "orig_units": [
+        "MIU/ML",
+        "IU/L"
+      ]
+    },
+    "UPROT": {
+      "numeric": false,
+      "allowed_test_names": [
+        "URINE PROTEIN",
+        "PROTEIN"
+      ],
+      "panel": [
+        "URINALYSIS"
+      ],
+      "specimen": [
+        "URINE"
+      ],
+      "orig_units": [
+        "NEGATIVE",
+        "TRACE",
+        "MG/DL"
+      ]
+    },
+    "UGLUC": {
+      "numeric": false,
+      "allowed_test_names": [
+        "URINE GLUCOSE",
+        "GLUCOSE"
+      ],
+      "panel": [
+        "URINALYSIS"
+      ],
+      "specimen": [
+        "URINE"
+      ],
+      "orig_units": [
+        "NEGATIVE",
+        "TRACE",
+        "MG/DL"
+      ]
+    },
+    "KET": {
+      "numeric": false,
+      "allowed_test_names": [
+        "KETONES"
+      ],
+      "panel": [
+        "URINALYSIS"
+      ],
+      "specimen": [
+        "URINE"
+      ],
+      "orig_units": [
+        "NEGATIVE",
+        "TRACE",
+        "POSITIVE"
+      ]
+    },
+    "BLOODU": {
+      "numeric": false,
+      "allowed_test_names": [
+        "BLOOD"
+      ],
+      "panel": [
+        "URINALYSIS"
+      ],
+      "specimen": [
+        "URINE"
+      ],
+      "orig_units": [
+        "NEGATIVE",
+        "TRACE",
+        "POSITIVE"
+      ]
+    }
+  }
+}

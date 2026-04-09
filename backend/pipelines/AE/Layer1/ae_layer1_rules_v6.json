@@ -1,0 +1,419 @@
+{
+  "input": {
+    "source_csv": "ae_raw_synthetic.csv",
+    "output_dir": "ae_layer1_outputs_v3"
+  },
+  "required_fields_always": [
+    "ROW_ID",
+    "STUDYID_RAW",
+    "SITEID_RAW",
+    "SUBJECT_RAW",
+    "VISIT_RAW",
+    "VISITDT_RAW",
+    "AE_FORM_SEQ",
+    "AE_SEQ_CRf",
+    "AEYN_RAW",
+    "AE_START_DATE_RAW",
+    "AE_SEVERITY_RAW",
+    "AE_SER_RAW",
+    "AE_OUTCOME_RAW",
+    "ENTRY_STATUS_RAW"
+  ],
+  "required_when_ae_present": [
+    "AE_TERM",
+    "AE_ONGOING_RAW",
+    "AE_REL_STUDY_DRUG_RAW"
+  ],
+  "allowed": {
+    "yes_no": [
+      "YES",
+      "NO"
+    ],
+    "severity": [
+      "MILD",
+      "MODERATE",
+      "SEVERE"
+    ],
+    "toxgr": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5"
+    ],
+    "relationship": [
+      "NOT RELATED",
+      "POSSIBLY RELATED",
+      "RELATED"
+    ],
+    "action": [
+      "NONE",
+      "DOSE NOT CHANGED",
+      "DOSE REDUCED",
+      "DRUG INTERRUPTED",
+      "DRUG WITHDRAWN"
+    ],
+    "outcome": [
+      "RECOVERED/RESOLVED",
+      "RECOVERING/RESOLVING",
+      "NOT RECOVERED/NOT RESOLVED",
+      "FATAL",
+      "UNKNOWN"
+    ],
+    "prespecified": [
+      "YES",
+      "NO"
+    ],
+    "reporter": [
+      "INVESTIGATOR",
+      "SUB-INVESTIGATOR",
+      "STUDY COORDINATOR"
+    ],
+    "entry_status": [
+      "COMPLETE",
+      "UPDATED"
+    ]
+  },
+  "severity_toxgr_map": {
+    "MILD": [
+      "1"
+    ],
+    "MODERATE": [
+      "2"
+    ],
+    "SEVERE": [
+      "3",
+      "4",
+      "5"
+    ]
+  },
+  "rules": {
+    "AE001": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "Required field missing",
+      "basis": "Missing mandatory raw field blocks trustworthy downstream review and mapping."
+    },
+    "AE002": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "Required AE field missing on AE-present row",
+      "basis": "Key AE capture fields should not be assumed when an event is present."
+    },
+    "AE003": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "STUDYID_RAW inconsistent within dataset",
+      "basis": "Study-level identifier conflict is not safe to standardize automatically."
+    },
+    "AE004": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "SUBJECT_RAW inconsistent with SITEID_RAW",
+      "basis": "Subject/site linkage conflict requires source review."
+    },
+    "AE005": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "AEYN_RAW invalid",
+      "basis": "Invalid AE presence flag requires source correction."
+    },
+    "AE006": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "AEYN_RAW indicates no AE but AE data are populated",
+      "basis": "Contradiction between AE flag and populated AE fields requires human resolution."
+    },
+    "AE007": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "AE_TERM missing",
+      "basis": "Missing verbatim AE term blocks clinically sound coding and review."
+    },
+    "AE008": {
+      "severity": "WARNING",
+      "bucket": "SDTM_STANDARDISABLE",
+      "description": "Text value has leading or trailing whitespace",
+      "basis": "Whitespace issue can be normalized deterministically while preserving raw value in audit output."
+    },
+    "AE009": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "AE_SEVERITY_RAW invalid",
+      "basis": "Invalid severity is not a safe normalization target without source confirmation."
+    },
+    "AE010": {
+      "severity": "WARNING",
+      "bucket": "SDTM_STANDARDISABLE",
+      "description": "AE_TOXGR_RAW valid concept but non-standard format",
+      "basis": "Toxicity grade text can be normalized deterministically."
+    },
+    "AE011": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "AE_TOXGR_RAW invalid",
+      "basis": "Unrecognized toxicity grade cannot be safely standardized."
+    },
+    "AE012": {
+      "severity": "WARNING",
+      "bucket": "Human",
+      "description": "AE_SEVERITY_RAW inconsistent with AE_TOXGR_RAW",
+      "basis": "Clinical inconsistency should be reviewed by data management or safety."
+    },
+    "AE013": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "Seriousness criterion present while AE_SER_RAW is not YES",
+      "basis": "Overall seriousness contradicts seriousness detail flags."
+    },
+    "AE014": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "AE_SER_RAW is YES but no seriousness criterion is present",
+      "basis": "Serious AE requires at least one seriousness criterion."
+    },
+    "AE015": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "AE_SER_RAW missing or invalid",
+      "basis": "Overall seriousness flag is required for AE assessment."
+    },
+    "AE016": {
+      "severity": "WARNING",
+      "bucket": "SDTM_STANDARDISABLE",
+      "description": "Date field valid but non-ISO format",
+      "basis": "Date format can be standardized deterministically."
+    },
+    "AE017": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "Date field invalid or impossible",
+      "basis": "Invalid or impossible date cannot be safely standardized."
+    },
+    "AE018": {
+      "severity": "WARNING",
+      "bucket": "SDTM_STANDARDISABLE",
+      "description": "Time field valid but non-standard format",
+      "basis": "Time format can be standardized deterministically."
+    },
+    "AE019": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "Time field invalid",
+      "basis": "Invalid time cannot be safely standardized."
+    },
+    "AE020": {
+      "severity": "WARNING",
+      "bucket": "Human",
+      "description": "Partial date captured",
+      "basis": "Partial date is clinically meaningful and should be preserved but highlighted for review."
+    },
+    "AE021": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "AE start date occurs after AE end date",
+      "basis": "Event chronology is impossible and requires source correction."
+    },
+    "AE022": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "AE start datetime occurs after AE end datetime on same day",
+      "basis": "Time chronology is impossible and requires source correction."
+    },
+    "AE023": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "AE report date occurs before AE start date",
+      "basis": "Reporting chronology conflict requires source review."
+    },
+    "AE024": {
+      "severity": "WARNING",
+      "bucket": "Human",
+      "description": "AE start date occurs after visit date",
+      "basis": "Timing may indicate visit/date entry issue and should be reviewed."
+    },
+    "AE025": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "AE_ONGOING_RAW invalid or missing",
+      "basis": "Ongoing status is required for correct AE end-date interpretation."
+    },
+    "AE026": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "AE_ONGOING_RAW=YES but AE_END_DATE_RAW is populated",
+      "basis": "Ongoing event should not carry an end date unless source is corrected."
+    },
+    "AE027": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "AE_ONGOING_RAW=NO but AE_END_DATE_RAW is missing",
+      "basis": "Closed event without end date needs source review."
+    },
+    "AE028": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "AE_END_TIME_RAW populated while AE_END_DATE_RAW is missing",
+      "basis": "End time without end date cannot be interpreted reliably."
+    },
+    "AE029": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "AE_OUTCOME_RAW inconsistent with AE_ONGOING_RAW",
+      "basis": "Outcome conflicts with ongoing status and requires human review."
+    },
+    "AE030": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "FATAL outcome without death seriousness criterion",
+      "basis": "Fatal AE should be aligned with death seriousness capture."
+    },
+    "AE031": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "AE_REL_STUDY_DRUG_RAW missing",
+      "basis": "Missing relationship to study drug blocks complete AE assessment."
+    },
+    "AE032": {
+      "severity": "WARNING",
+      "bucket": "SDTM_STANDARDISABLE",
+      "description": "Relationship value valid after normalization",
+      "basis": "Relationship text can be standardized deterministically."
+    },
+    "AE033": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "AE_REL_STUDY_DRUG_RAW invalid",
+      "basis": "Unrecognized relationship term requires source clarification."
+    },
+    "AE034": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "Potential duplicate AE record",
+      "basis": "Duplicate-looking AE records require human decision on whether records represent same event."
+    },
+    "AE035": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "AE sequence duplicated within subject",
+      "basis": "AESEQ candidate should uniquely identify events within subject."
+    },
+    "AE036": {
+      "severity": "WARNING",
+      "bucket": "Human",
+      "description": "RAND_NO missing",
+      "basis": "Missing treatment/randomization identifier weakens traceability and treatment relationship review."
+    },
+    "AE037": {
+      "severity": "WARNING",
+      "bucket": "SDTM_STANDARDISABLE",
+      "description": "Controlled terminology value differs only by case",
+      "basis": "Case-only variation can be standardized deterministically."
+    },
+    "AE038": {
+      "severity": "ERROR",
+      "bucket": "Human",
+      "description": "Controlled terminology value invalid",
+      "basis": "Value is outside approved sponsor/domain terminology and requires source review."
+    },
+    "AE039": {
+      "severity": "WARNING",
+      "bucket": "Human",
+      "description": "Operational follow-up signal present",
+      "basis": "Updated entry or change reason suggests reviewable workflow activity."
+    }
+  },
+  "suppression": {
+    "by_rule": {
+      "AE001": [
+        "AE015",
+        "AE025",
+        "AE031"
+      ],
+      "AE002": [
+        "AE015",
+        "AE025",
+        "AE031"
+      ],
+      "AE007": [],
+      "AE005": [
+        "AE006"
+      ],
+      "AE009": [
+        "AE012"
+      ],
+      "AE010": [],
+      "AE011": [
+        "AE012"
+      ],
+      "AE015": [
+        "AE013",
+        "AE014"
+      ],
+      "AE017": [
+        "AE021",
+        "AE022",
+        "AE023",
+        "AE024"
+      ],
+      "AE020": [
+        "AE021",
+        "AE022",
+        "AE023",
+        "AE024"
+      ],
+      "AE019": [
+        "AE022"
+      ],
+      "AE025": [
+        "AE026",
+        "AE027",
+        "AE029"
+      ],
+      "AE031": [
+        "AE032",
+        "AE033"
+      ],
+      "AE038": []
+    },
+    "priority": {
+      "AE001": 1,
+      "AE002": 1,
+      "AE007": 1,
+      "AE005": 2,
+      "AE009": 2,
+      "AE011": 2,
+      "AE015": 2,
+      "AE017": 2,
+      "AE019": 2,
+      "AE020": 2,
+      "AE025": 2,
+      "AE031": 2,
+      "AE033": 2,
+      "AE038": 2,
+      "AE006": 3,
+      "AE012": 3,
+      "AE013": 3,
+      "AE014": 3,
+      "AE021": 3,
+      "AE022": 3,
+      "AE023": 3,
+      "AE024": 3,
+      "AE026": 3,
+      "AE027": 3,
+      "AE028": 3,
+      "AE029": 3,
+      "AE030": 3,
+      "AE032": 3,
+      "AE034": 3,
+      "AE035": 3,
+      "AE036": 3,
+      "AE039": 3,
+      "AE008": 4,
+      "AE010": 4,
+      "AE016": 4,
+      "AE018": 4,
+      "AE037": 4
+    }
+  }
+}

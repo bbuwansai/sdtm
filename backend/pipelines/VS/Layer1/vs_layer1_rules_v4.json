@@ -1,0 +1,171 @@
+{
+  "rule_set_name": "VS Layer 1 Source Quality Rules v4",
+  "domain": "VS",
+  "source_required_fields": [
+    "PROTOCOL_ID",
+    "SITE_NUMBER",
+    "SUBJECT_NUMBER",
+    "VISIT_NAME",
+    "VISIT_NUM",
+    "VS_TEST_RAW",
+    "VS_RESULT_RAW"
+  ],
+  "date_rules": {
+    "source_date_field": "VS_DATE",
+    "allowed_formats": [
+      "YYYY",
+      "YYYY-MM",
+      "YYYY-MM-DD"
+    ],
+    "disallow_imputation": true,
+    "visit_sequence_must_be_non_decreasing_by_subject": true,
+    "screening_before_or_equal_baseline": true,
+    "baseline_before_or_equal_postbaseline_visits": true
+  },
+  "time_rules": {
+    "source_time_field": "VS_TIME",
+    "allowed_formats": [
+      "HH:MM"
+    ],
+    "allow_missing": true
+  },
+  "visit_rules": {
+    "expected_visitnum_by_visitname": {
+      "SCREENING": "10",
+      "BASELINE": "20",
+      "WEEK 4": "30",
+      "WEEK 8": "40"
+    }
+  },
+  "unit_rules": {
+    "allowed_source_units_by_test": {
+      "SYSTOLIC BLOOD PRESSURE": [
+        "mmHg",
+        "MMHG",
+        "mm hg"
+      ],
+      "SYST BP": [
+        "mmHg",
+        "MMHG",
+        "mm hg"
+      ],
+      "DIASTOLIC BLOOD PRESSURE": [
+        "mmHg",
+        "MMHG",
+        "mm hg"
+      ],
+      "PULSE RATE": [
+        "beats/min",
+        "bpm",
+        "BEATS/MIN",
+        "per min"
+      ],
+      "TEMPERATURE": [
+        "C",
+        "CELSIUS",
+        "F",
+        "FAHRENHEIT",
+        "K"
+      ],
+      "WEIGHT": [
+        "kg",
+        "KG",
+        "kilograms",
+        "lb",
+        "LBS"
+      ],
+      "HEIGHT": [
+        "cm",
+        "CM",
+        "in",
+        "INCH"
+      ]
+    },
+    "unit_required_for_numeric_tests": true,
+    "also_flag_unit_normalization_issue_when_missing": true
+  },
+  "numeric_result_rules": {
+    "numeric_tests": [
+      "SYSTOLIC BLOOD PRESSURE",
+      "SYST BP",
+      "DIASTOLIC BLOOD PRESSURE",
+      "PULSE RATE",
+      "TEMPERATURE",
+      "WEIGHT",
+      "HEIGHT"
+    ],
+    "allow_negative_values_for_tests": [],
+    "implausibility_thresholds": {
+      "SYSTOLIC BLOOD PRESSURE": {
+        "min": 70,
+        "max": 220
+      },
+      "SYST BP": {
+        "min": 70,
+        "max": 220
+      },
+      "DIASTOLIC BLOOD PRESSURE": {
+        "min": 40,
+        "max": 140
+      },
+      "PULSE RATE": {
+        "min": 30,
+        "max": 220
+      },
+      "TEMPERATURE_C_EQUIV": {
+        "min": 34,
+        "max": 43
+      },
+      "WEIGHT_KG_EQUIV": {
+        "min": 20,
+        "max": 300
+      },
+      "HEIGHT_CM_EQUIV": {
+        "min": 80,
+        "max": 250
+      }
+    }
+  },
+  "duplicate_rules": {
+    "candidate_key_fields": [
+      "SUBJECT_KEY",
+      "VISIT_NAME",
+      "VISIT_NUM",
+      "VS_DATE",
+      "VS_TEST_RAW"
+    ]
+  },
+  "test_name_rules": {
+    "allowed_raw_test_names": [
+      "SYSTOLIC BLOOD PRESSURE",
+      "SYST BP",
+      "DIASTOLIC BLOOD PRESSURE",
+      "PULSE RATE",
+      "TEMPERATURE",
+      "WEIGHT",
+      "HEIGHT"
+    ]
+  },
+  "position_rules": {
+    "allowed_values": [
+      "SITTING",
+      "SUPINE",
+      "STANDING"
+    ],
+    "allow_missing": true
+  },
+  "fasting_rules": {
+    "allowed_values": [
+      "Y",
+      "N"
+    ],
+    "allow_missing": true
+  },
+  "panel_completeness_rules": {
+    "enabled": true,
+    "expected_panel_file": "vs_expected_test_panel_by_visit_v4.csv",
+    "expected_rows_per_subject": 24,
+    "flag_missing_expected_test_row": true,
+    "flag_subject_row_count_mismatch": true
+  }
+}
