@@ -4,17 +4,21 @@ from typing import Optional, Dict, Tuple
 import pandas as pd
 
 BASE = Path(__file__).resolve().parent
+DOMAIN_ROOT = BASE.parent
+LAYER1_DIR = DOMAIN_ROOT / "Layer1"
+SPEC_ROOT = DOMAIN_ROOT / "Spec"
+
 SOURCE_CANDIDATES = [
-    BASE / "vs_layer1_outputs_v4" / "vs_cleaned_output_v4.csv",
-    BASE / "vs_layer1_outputs_v3" / "vs_cleaned_output_v3.csv",
-    BASE / "vs_layer1_outputs_v2" / "vs_cleaned_output_v2.csv",
-    BASE / "vs_layer1_outputs" / "vs_cleaned_output.csv",
-    BASE / "vs_cleaned_output_v4.csv",
-    BASE / "vs_cleaned_output_v3.csv",
-    BASE / "vs_cleaned_output_v2.csv",
-    BASE / "vs_cleaned_output.csv",
+    LAYER1_DIR / "vs_layer1_outputs_v4" / "vs_cleaned_output_v4.csv",
+    LAYER1_DIR / "vs_layer1_outputs_v3" / "vs_cleaned_output_v3.csv",
+    LAYER1_DIR / "vs_layer1_outputs_v2" / "vs_cleaned_output_v2.csv",
+    LAYER1_DIR / "vs_layer1_outputs" / "vs_cleaned_output.csv",
+    LAYER1_DIR / "vs_cleaned_output_v4.csv",
+    LAYER1_DIR / "vs_cleaned_output_v3.csv",
+    LAYER1_DIR / "vs_cleaned_output_v2.csv",
+    LAYER1_DIR / "vs_cleaned_output.csv",
 ]
-SPEC_DIR = BASE / "vs_spec_outputs_v3"
+SPEC_DIR = SPEC_ROOT / "vs_spec_outputs_v3"
 OUTDIR = BASE / "vs_sdtm_outputs_v4"
 
 ALLOW_PARTIAL_VSDTC_IN_FINAL = False
