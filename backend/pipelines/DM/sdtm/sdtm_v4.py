@@ -133,13 +133,27 @@ def calculate_age_years(brthdtc: str, rfstdtc: str) -> Optional[str]:
     except Exception:
         return None
 
-def make_ct_lookup(ct_df: pd.DataFrame) -> Dict[tuple, str]:
+def make_ct_lookup(ct_df):
     lut = {}
+
+    # Normalize column names
+    cols = {c.lower(): c for c in ct_df.columns}
+
+    var_col = cols.get("variable") or cols.get("var") or cols.get("column") or cols.get("field")
+    val_col = cols.get("value") or cols.get("code") or cols.get("term")
+
+    if var_col is None or val_col is None:
+        raise ValueError(f"CT file missing required columns. Found: {list(ct_df.columns)}")
+
     for _, row in ct_df.iterrows():
-        var = str(row["variable"]).strip().upper()
-        src = str(row["source_value"]).strip().upper()
-        tgt = str(row["target_value"]).strip().upper()
-        lut[(var, src)] = tgt
+        var = str(row[var_col]).strip().upper()
+        val = str(row[val_col]).strip().upper()
+
+        if var not in lut:
+            lut[var] = set()
+
+        lut[var].add(val)
+
     return lut
 
 def apply_ct(variable: str, value: Optional[str], lut: Dict[tuple, str]) -> Optional[str]:
