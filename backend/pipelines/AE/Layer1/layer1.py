@@ -50,6 +50,11 @@ def raw_text(v):
 def present(v):
     return v is not None and not pd.isna(v)
 
+def as_text(v):
+    if pd.isna(v):
+        return ""
+    return str(v).strip()
+
 
 def normalize_partial_iso(s: str) -> Optional[str]:
     s = s.strip()
@@ -387,20 +392,22 @@ def main():
                 add_issue("AE019", idx, row, col, rawv)
 
     for idx, row in df.iterrows():
-        sd, ed = row.get("AE_START_DATE_RAW_NORM"), row.get("AE_END_DATE_RAW_NORM")
-        st, et = row.get("AE_START_TIME_RAW_NORM"), row.get("AE_END_TIME_RAW_NORM")
-        rd = row.get("AE_REPORT_DATE_RAW_NORM")
-        vd = row.get("VISITDT_RAW_NORM")
+        sd = as_text(row.get("AE_START_DATE_RAW_NORM"))
+        ed = as_text(row.get("AE_END_DATE_RAW_NORM"))
+        st = as_text(row.get("AE_START_TIME_RAW_NORM"))
+        et = as_text(row.get("AE_END_TIME_RAW_NORM"))
+        rd = as_text(row.get("AE_REPORT_DATE_RAW_NORM"))
+        vd = as_text(row.get("VISITDT_RAW_NORM"))
         if not has_rule_on_root(idx, "AE_START_DATE_RAW", ["AE017", "AE020"]) and not has_rule_on_root(idx, "AE_END_DATE_RAW", ["AE017", "AE020"]):
-            if sd and ed and len(sd) == 10 and len(ed) == 10 and sd > ed:
+            if len(sd) == 10 and len(ed) == 10 and sd > ed:
                 add_issue("AE021", idx, row, "AE_START_DATE_RAW/AE_END_DATE_RAW", f"{clean(row.get('RAW__AE_START_DATE_RAW'))} / {clean(row.get('RAW__AE_END_DATE_RAW'))}")
-            if sd and ed and len(sd) == 10 and len(ed) == 10 and sd == ed and st and et and not has_rule_on_root(idx, "AE_START_TIME_RAW", ["AE019"]) and not has_rule_on_root(idx, "AE_END_TIME_RAW", ["AE019"]) and st > et:
+            if len(sd) == 10 and len(ed) == 10 and sd == ed and st and et and not has_rule_on_root(idx, "AE_START_TIME_RAW", ["AE019"]) and not has_rule_on_root(idx, "AE_END_TIME_RAW", ["AE019"]) and st > et:
                 add_issue("AE022", idx, row, "AE_START_TIME_RAW/AE_END_TIME_RAW", f"{clean(row.get('RAW__AE_START_TIME_RAW'))} / {clean(row.get('RAW__AE_END_TIME_RAW'))}")
         if not has_rule_on_root(idx, "AE_REPORT_DATE_RAW", ["AE017", "AE020"]) and not has_rule_on_root(idx, "AE_START_DATE_RAW", ["AE017", "AE020"]):
-            if sd and rd and len(sd) == 10 and len(rd) == 10 and rd < sd:
+            if len(sd) == 10 and len(rd) == 10 and rd < sd:
                 add_issue("AE023", idx, row, "AE_REPORT_DATE_RAW", clean(row.get("RAW__AE_REPORT_DATE_RAW")))
         if not has_rule_on_root(idx, "VISITDT_RAW", ["AE017", "AE020"]) and not has_rule_on_root(idx, "AE_START_DATE_RAW", ["AE017", "AE020"]):
-            if sd and vd and len(sd) == 10 and len(vd) == 10 and sd > vd:
+            if len(sd) == 10 and len(vd) == 10 and sd > vd:
                 add_issue("AE024", idx, row, "AE_START_DATE_RAW", clean(row.get("RAW__AE_START_DATE_RAW")))
 
     for idx, row in df.iterrows():
