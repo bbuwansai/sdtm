@@ -161,8 +161,9 @@ def main():
     args = parser.parse_args()
 
     base = Path(__file__).resolve().parent
-        if args.rules:
+            if args.rules:
         rules_path = Path(args.rules)
+        candidates = [rules_path]
     else:
         candidates = [
             base / "lb_layer1_rules_v5.json",
@@ -172,8 +173,8 @@ def main():
         rules_path = next((p for p in candidates if p.exists()), candidates[0])
 
     if not rules_path.exists():
-        raise FileNotFoundError(f"Rules JSON not found. Tried: {[str(p) for p in candidates] if not args.rules else [str(rules_path)]}"))
-
+        raise FileNotFoundError(f"Rules JSON not found. Tried: {[str(p) for p in candidates]}")
+        
     cfg = json.loads(rules_path.read_text(encoding="utf-8"))
     source = Path(args.source) if args.source else (base / cfg["input"]["source_csv"])
     if not source.exists():
