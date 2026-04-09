@@ -86,8 +86,7 @@ export default function PlatformPage() {
     () =>
       timeline
         .map((event) => `[${new Date(event.time).toLocaleTimeString()}] ${levelLabel(event.level)} ${event.message}`)
-        .join("
-"),
+        .join("\n"),
     [timeline],
   );
 
