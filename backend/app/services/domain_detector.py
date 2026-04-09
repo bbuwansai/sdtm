@@ -173,5 +173,7 @@ def detect_domain_from_columns(columns: Iterable[str]) -> DetectionResult:
     )
 
 
-def detect_domain_from_dataframe(df: pd.DataFrame) -> DetectionResult:
-    return detect_domain_from_columns(df.columns)
+def detect_domain(value) -> DetectionResult:
+    if isinstance(value, pd.DataFrame):
+        return detect_domain_from_dataframe(value)
+    return detect_domain_from_columns(value)
