@@ -179,7 +179,7 @@ def _score_domains(columns: Set[str], file_name: Optional[str] = None) -> Tuple[
         return None, 0, [], scores
 
     total_score = sum(scores.values())
-    confidence = int(round((best_score / total_score) * 100)) if total_score > 0 else 0
+    confidence = min(score / max_possible_score, 1.0) * 100 if total_score > 0 else 0
     matched_columns = _matched_columns_for_domain(best_domain, columns)
 
     if not matched_columns and hint_domain == best_domain:
