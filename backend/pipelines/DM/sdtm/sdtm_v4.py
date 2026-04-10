@@ -584,7 +584,7 @@ def validate_dm_row(
     else:
         subjid_re = None
 
-    required_for_final = set(sponsor_rules.get("required_for_demo_final", ["STUDYID","DOMAIN","USUBJID","SUBJID","SITEID","SEX"]))
+    required_for_final = set(sponsor_rules.get("required_for_demo_final", ["STUDYID","DOMAIN","USUBJID","SUBJID","SITEID","SEX","ARM","ACTARM"]))
 
     for req in required_for_final:
         if not out.get(req):
