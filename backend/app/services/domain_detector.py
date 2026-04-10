@@ -212,28 +212,28 @@ def _extract_inputs(value: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -
     return columns, filename
 
 
+def _build_result(domain: str, matched_columns: List[str], scores: Optional[Dict[str, int]] = None, confidence: float = 1.0) -> Dict[str, object]:
+    return {
+        "domain": domain,
+        "matched_columns": matched_columns,
+        "confidence": confidence,
+        "scores": scores or {},
+    }
+
+
 def detect_domain_from_columns(columns: Iterable[object], filename: Optional[str] = None) -> Dict[str, object]:
     cols = _normalize_columns(columns)
-    domain, matched_columns, _scores = _score_domains(cols)
+    domain, matched_columns, scores = _score_domains(cols)
 
     if domain is None:
         hinted_domain, hint_columns = _filename_hint(filename)
         if hinted_domain:
-            return {
-                "domain": hinted_domain,
-                "matched_columns": hint_columns,
-            }
+            return _build_result(hinted_domain, hint_columns, scores=scores, confidence=0.95)
 
     if domain is None:
-        return {
-            "domain": "UNKNOWN",
-            "matched_columns": [],
-        }
+        return _build_result("UNKNOWN", [], scores=scores, confidence=0.0)
 
-    return {
-        "domain": domain,
-        "matched_columns": matched_columns,
-    }
+    return _build_result(domain, matched_columns, scores=scores, confidence=1.0)
 
 
 def detect_domain_from_dataframe(df: pd.DataFrame, filename: Optional[str] = None) -> Dict[str, object]:
@@ -248,12 +248,6 @@ def detect_domain(value, *args, **kwargs) -> Dict[str, object]:
 
     hinted_domain, hint_columns = _filename_hint(filename)
     if hinted_domain:
-        return {
-            "domain": hinted_domain,
-            "matched_columns": hint_columns,
-        }
+        return _build_result(hinted_domain, hint_columns, confidence=0.95)
 
-    return {
-        "domain": "UNKNOWN",
-        "matched_columns": [],
-    }
+    return _build_result("UNKNOWN", [], confidence=0.0)
