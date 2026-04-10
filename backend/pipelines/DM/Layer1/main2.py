@@ -221,11 +221,7 @@ def clean_dm(df):
                       "SEX missing", None, "CRF value required", "N")
         else:
             sex_std = SEX_MAP.get(sex.lower(), sex.upper())
-            if sex_std in {"M", "F", "U"}:
-                if sex != sex_std:
-                    add_issue(issues, rec_id, "SEX", "WARNING", "STANDARDIZATION", "DM005",
-                              "SEX requires source/CRF confirmation before coding", sex, sex_std, "N")
-            else:
+            if sex_std not in {"M", "F", "U"}:
                 add_issue(issues, rec_id, "SEX", "CRITICAL", "INVALID_CODE", "DM006",
                           "SEX not in allowed coded values", sex, "M/F/U from CRF", "N")
 
@@ -267,11 +263,7 @@ def clean_dm(df):
                       "DTHFL missing", None, "Y/N from source", "N")
         else:
             dthfl_std = DTHFL_MAP.get(dthfl.lower(), dthfl.upper())
-            if dthfl_std in {"Y", "N"}:
-                if dthfl != dthfl_std:
-                    add_issue(issues, rec_id, "DTHFL", "WARNING", "STANDARDIZATION", "DM014",
-                              "DTHFL requires source confirmation before coding", dthfl, dthfl_std, "N")
-            else:
+            if dthfl_std not in {"Y", "N"}:
                 add_issue(issues, rec_id, "DTHFL", "CRITICAL", "INVALID_CODE", "DM015",
                           "DTHFL has invalid coded value", dthfl, "Y/N", "N")
 
@@ -281,8 +273,7 @@ def clean_dm(df):
             add_issue(issues, rec_id, "COUNTRY", "WARNING", "MISSING_REQUIRED", "DM016A",
                       "COUNTRY missing", None, "source/CRF country", "N")
         elif country_key in COUNTRY_MAP:
-            add_issue(issues, rec_id, "COUNTRY", "WARNING", "STANDARDIZATION", "DM016",
-                      "COUNTRY requires source confirmation before ISO3 mapping", country, COUNTRY_MAP[country_key], "N")
+            pass
 
     # 4. Recover SITEID/SUBJID from existing USUBJID when possible
     for idx in clean.index:
