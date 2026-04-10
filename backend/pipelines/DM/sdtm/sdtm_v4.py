@@ -229,6 +229,32 @@ def row_has_human_issue(row_num: int, human_issue_map: Dict[int, Set[str]]) -> b
 def field_is_sdtm_fixable(row_num: int, field: str, sdtm_fixable_map: Dict[int, Set[str]]) -> bool:
     return row_num in sdtm_fixable_map and field in sdtm_fixable_map[row_num]
 
+def normalized_sex_ok(val: Optional[str]) -> bool:
+    if val is None:
+        return False
+    v = str(val).strip().upper()
+    if v in {"M", "F", "U"}:
+        return True
+    return str(val).strip().lower() in {"male", "female", "unknown", "m", "f", "u"}
+
+
+def normalized_dthfl_ok(val: Optional[str]) -> bool:
+    if val is None:
+        return False
+    v = str(val).strip().upper()
+    if v in {"Y", "N"}:
+        return True
+    return str(val).strip().lower() in {"yes", "no", "y", "n"}
+
+
+def normalized_country_ok(val: Optional[str]) -> bool:
+    if val is None:
+        return False
+    s = str(val).strip()
+    if len(s) == 3 and s.isalpha():
+        return True
+    return s.upper() in {"INDIA", "UNITED STATES", "UK", "UNITED KINGDOM"}
+
 
 def build_dm(source_df: pd.DataFrame, human_issues_df: pd.DataFrame, sdtm_fixable_df: pd.DataFrame,
              ct_lut: Dict[tuple, str], study_meta: dict, prog_conv: dict, sponsor_rules: dict):
@@ -275,7 +301,7 @@ def build_dm(source_df: pd.DataFrame, human_issues_df: pd.DataFrame, sdtm_fixabl
         else:
             out["AGEU"] = get_row_value(src_row, "AGEU", "AGE_UNITS")
 
-        # Human-reviewed source values: preserve raw normalized values only, do not CT-standardize here.
+        # Human-reviewed source values: preserve source-backed values; do not CT-standardize here.
         out["SEX"] = get_row_value(src_row, "SEX", "SEX_AT_BIRTH")
         out["RACE"] = apply_ct("RACE", get_row_value(src_row, "RACE", "RACE_CAT"), ct_lut) if get_row_value(src_row, "RACE", "RACE_CAT") is not None else None
         out["ETHNIC"] = apply_ct("ETHNIC", get_row_value(src_row, "ETHNIC", "ETHNIC_GRP"), ct_lut) if get_row_value(src_row, "ETHNIC", "ETHNIC_GRP") is not None else None
@@ -303,6 +329,18 @@ def build_dm(source_df: pd.DataFrame, human_issues_df: pd.DataFrame, sdtm_fixabl
             if not out.get(req):
                 row_issues.append(f"{req} missing")
                 hard_fail = True
+
+        if out.get("SEX") and not normalized_sex_ok(out.get("SEX")):
+            row_issues.append("SEX not in accepted source values")
+            hard_fail = True
+
+        if out.get("DTHFL") and not normalized_dthfl_ok(out.get("DTHFL")):
+            row_issues.append("DTHFL not in accepted source values")
+            hard_fail = True
+
+        if out.get("COUNTRY") and not normalized_country_ok(out.get("COUNTRY")):
+            row_issues.append("COUNTRY not in accepted source values")
+            hard_fail = True
 
         if out.get("SUBJID") and subjid_re and not subjid_re.fullmatch(str(out["SUBJID"])):
             row_issues.append("SUBJID violates sponsor pattern")
