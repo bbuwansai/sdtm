@@ -129,6 +129,7 @@ def detect_domain_from_columns(columns: Iterable[object], filename: Optional[str
     cols = _normalize_columns(columns)
     domain, matched_columns = _score_domains(cols)
 
+    # 🔥 Always fallback to filename
     if domain is None:
         hinted_domain, hint_columns = _filename_hint(filename)
         if hinted_domain:
@@ -136,6 +137,13 @@ def detect_domain_from_columns(columns: Iterable[object], filename: Optional[str
                 "domain": hinted_domain,
                 "matched_columns": hint_columns,
             }
+
+    # 🔥 Final fallback → NEVER return None
+    if domain is None:
+        return {
+            "domain": "UNKNOWN",
+            "matched_columns": [],
+        }
 
     return {
         "domain": domain,
@@ -160,8 +168,9 @@ def detect_domain(value, *args, **kwargs) -> Dict[str, object]:
             return detect_domain_from_dataframe(args[0], filename=value)
 
         hinted_domain, hint_columns = _filename_hint(value)
+
         return {
-            "domain": hinted_domain,
+            "domain": hinted_domain if hinted_domain else "UNKNOWN",
             "matched_columns": hint_columns,
         }
 
