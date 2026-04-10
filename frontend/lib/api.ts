@@ -1,10 +1,10 @@
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+export const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
 export type JobSummary = {
   job_id: string;
   status: string;
   domain?: string | null;
-  domain_confidence?: number | null;
   filename?: string | null;
   error?: string | null;
   current_step?: string | null;
