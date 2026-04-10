@@ -56,9 +56,6 @@ COLUMN_ALIASES: Dict[str, str] = {
     "VISITNUMRAW": "VISIT NUM",
     "VISIT_NUM_RAW": "VISIT NUM",
     "VISIT_NUM": "VISIT NUM",
-    "AESEQCRF": "AE SEQ CRF",
-    "AE_SEQ_CRF": "AE SEQ CRF",
-    "AE_SEQ_CRf": "AE SEQ CRF",
     "SUBJECTKEY": "SUBJECT KEY",
     "STUDYNUMBER": "STUDY NUMBER",
     "SITENO": "SITE NO",
@@ -100,27 +97,22 @@ def _matched_columns_for_domain(domain: str, columns: Set[str]) -> List[str]:
     return sorted((columns & rules["strong"]) | (columns & rules["weak"]))
 
 
-def _score_domains(columns: Set[str]) -> Tuple[Optional[str], float, List[str], Dict[str, int]]:
+def _score_domains(columns: Set[str]) -> Tuple[Optional[str], List[str]]:
     scores: Dict[str, int] = {}
-    strong_hit_counts: Dict[str, int] = {}
 
     for domain, rules in DOMAIN_RULES.items():
         strong_hits = columns & rules["strong"]
         weak_hits = columns & rules["weak"]
-        strong_hit_counts[domain] = len(strong_hits)
         scores[domain] = len(strong_hits) * 3 + len(weak_hits)
 
     best_domain = max(scores, key=scores.get)
     best_score = scores[best_domain]
 
-    if best_score == 0 or strong_hit_counts[best_domain] == 0:
-        return None, 0.0, [], scores
+    if best_score == 0:
+        return None, []
 
-    total_score = sum(scores.values())
-    confidence = (best_score / total_score) if total_score > 0 else 0.0
-    confidence = max(0.0, min(confidence, 1.0))
     matched_columns = _matched_columns_for_domain(best_domain, columns)
-    return best_domain, confidence, matched_columns, scores
+    return best_domain, matched_columns
 
 
 def _filename_hint(filename: Optional[str]) -> Tuple[Optional[str], List[str]]:
@@ -135,20 +127,19 @@ def _filename_hint(filename: Optional[str]) -> Tuple[Optional[str], List[str]]:
 
 def detect_domain_from_columns(columns: Iterable[object], filename: Optional[str] = None) -> Dict[str, object]:
     cols = _normalize_columns(columns)
-    domain, confidence, matched_columns, scores = _score_domains(cols)
+    domain, matched_columns = _score_domains(cols)
 
     if domain is None:
         hinted_domain, hint_columns = _filename_hint(filename)
-        if hinted_domain is not None:
-            domain = hinted_domain
-            confidence = 0.95
-            matched_columns = hint_columns
+        if hinted_domain:
+            return {
+                "domain": hinted_domain,
+                "matched_columns": hint_columns,
+            }
 
     return {
         "domain": domain,
-        "confidence": round(float(confidence), 4),  # 0.0 to 1.0 for frontend display
         "matched_columns": matched_columns,
-        "scores": scores,
     }
 
 
@@ -171,9 +162,7 @@ def detect_domain(value, *args, **kwargs) -> Dict[str, object]:
         hinted_domain, hint_columns = _filename_hint(value)
         return {
             "domain": hinted_domain,
-            "confidence": 0.95 if hinted_domain else 0.0,
             "matched_columns": hint_columns,
-            "scores": {},
         }
 
     return detect_domain_from_columns(value, filename=filename)
