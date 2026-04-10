@@ -1,7 +1,6 @@
-
 import json
 from pathlib import Path
-from typing import Optional, Dict, List, Tuple
+from typing import Optional, Dict, List
 
 import pandas as pd
 
@@ -27,12 +26,14 @@ FINAL_COLUMNS = [
     "DTHFL", "DTHDTC",
 ]
 
+
 def first_existing(base: Path, candidates: List[str]) -> Path:
     for c in candidates:
         p = base / c
         if p.exists():
             return p
     raise FileNotFoundError(f"None of these files were found: {candidates}")
+
 
 def load_inputs():
     clean_source_path = first_existing(BASE, CLEAN_SOURCE_CANDIDATES)
@@ -55,6 +56,7 @@ def load_inputs():
         "sponsor_rules": sponsor_rules_path,
     }
 
+
 def clean_value(val: Optional[str], missing_values: List[str]) -> Optional[str]:
     if pd.isna(val):
         return None
@@ -67,12 +69,14 @@ def clean_value(val: Optional[str], missing_values: List[str]) -> Optional[str]:
         return None
     return s
 
+
 def normalize_df(df: pd.DataFrame, prog_conv: dict) -> pd.DataFrame:
     out = df.copy()
     missing_values = prog_conv.get("missing_values", ["", "NA", "NULL"])
     for col in out.columns:
         out[col] = out[col].apply(lambda x: clean_value(x, missing_values))
     return out
+
 
 def normalize_id(val: Optional[str]) -> Optional[str]:
     if val is None:
@@ -81,6 +85,7 @@ def normalize_id(val: Optional[str]) -> Optional[str]:
     if s.endswith(".0"):
         s = s[:-2]
     return s
+
 
 def normalize_age_token(val: Optional[str]) -> Optional[str]:
     if val is None:
@@ -96,6 +101,7 @@ def normalize_age_token(val: Optional[str]) -> Optional[str]:
     except Exception:
         return None
 
+
 def to_iso_partial_date(val: Optional[str]) -> Optional[str]:
     if val is None:
         return None
@@ -109,6 +115,7 @@ def to_iso_partial_date(val: Optional[str]) -> Optional[str]:
         return s
     return None
 
+
 def partial_sort_key(val: Optional[str]) -> Optional[str]:
     if val is None:
         return None
@@ -121,8 +128,10 @@ def partial_sort_key(val: Optional[str]) -> Optional[str]:
         return s
     return None
 
+
 def is_full_date(val: Optional[str]) -> bool:
     return isinstance(val, str) and len(val) == 10
+
 
 def calculate_age_years(brthdtc: str, rfstdtc: str) -> Optional[str]:
     try:
@@ -133,12 +142,12 @@ def calculate_age_years(brthdtc: str, rfstdtc: str) -> Optional[str]:
     except Exception:
         return None
 
+
 def make_ct_lookup(ct_df):
     lut = {}
 
     cols = {str(c).strip().lower(): c for c in ct_df.columns}
 
-    # Support both old and new CT schemas
     var_col = (
         cols.get("variable")
         or cols.get("var")
@@ -176,19 +185,18 @@ def make_ct_lookup(ct_df):
         if not var:
             continue
 
-        if var not in lut:
-            lut[var] = {}
-
         if src:
-            lut[var][src] = std if std else src
+            lut[(var, src)] = std if std else src
 
     return lut
+
 
 def apply_ct(variable: str, value: Optional[str], lut: Dict[tuple, str]) -> Optional[str]:
     if value is None:
         return None
     key = (variable.upper(), str(value).strip().upper())
     return lut.get(key, str(value).strip().upper())
+
 
 def standardize_ageu(value: Optional[str], age_present: bool, sponsor_rules: dict, lut: Dict[tuple, str]) -> Optional[str]:
     if value is not None:
@@ -201,6 +209,7 @@ def standardize_ageu(value: Optional[str], age_present: bool, sponsor_rules: dic
         return default
     return None
 
+
 def standardize_country(value: Optional[str], sponsor_rules: dict, lut: Dict[tuple, str]) -> Optional[str]:
     if value is None:
         return None
@@ -211,6 +220,7 @@ def standardize_country(value: Optional[str], sponsor_rules: dict, lut: Dict[tup
         return str(value).strip().upper()
     return v
 
+
 def standardize_dthfl(dthfl_val: Optional[str], dthdtc_val: Optional[str], sponsor_rules: dict, lut: Dict[tuple, str]) -> Optional[str]:
     if dthdtc_val and sponsor_rules.get("dthfl_rule", {}).get("set_Y_if_dthdtc_present", True):
         return "Y"
@@ -219,10 +229,10 @@ def standardize_dthfl(dthfl_val: Optional[str], dthdtc_val: Optional[str], spons
     mapped = apply_ct("DTHFL", dthfl_val, lut)
     if mapped in {"Y", "YES"}:
         return "Y"
-    # sponsor rule: Y or blank only
     if sponsor_rules.get("dthfl_rule", {}).get("allow_only_Y_or_blank", True):
         return None
     return mapped
+
 
 def derive_usubjid(row: dict, sponsor_rules: dict) -> Optional[str]:
     rule = sponsor_rules.get("usubjid_rule", "STUDYID-SITEID-SUBJID").upper()
@@ -236,11 +246,13 @@ def derive_usubjid(row: dict, sponsor_rules: dict) -> Optional[str]:
         return row.get("SUBJECT_KEY")
     return None
 
+
 def get_row_value(row: pd.Series, *candidates: str) -> Optional[str]:
     for c in candidates:
         if c in row and row.get(c) not in [None, ""]:
             return row.get(c)
     return None
+
 
 def build_dm(source_df: pd.DataFrame, ct_lut: Dict[tuple, str], study_meta: dict, prog_conv: dict, sponsor_rules: dict):
     final_rows = []
@@ -260,7 +272,6 @@ def build_dm(source_df: pd.DataFrame, ct_lut: Dict[tuple, str], study_meta: dict
         row_issues = []
         hard_fail = False
 
-        # Start from Layer 1 as source of truth. Preserve values unless standardization/derivation explicitly changes them.
         out = {c: get_row_value(src_row, c) for c in FINAL_COLUMNS}
         original = out.copy()
 
@@ -269,12 +280,10 @@ def build_dm(source_df: pd.DataFrame, ct_lut: Dict[tuple, str], study_meta: dict
         out["SUBJID"] = normalize_id(get_row_value(src_row, "SUBJID", "SUBJECT_NUMBER"))
         out["SITEID"] = normalize_id(get_row_value(src_row, "SITEID", "SITE_NUMBER"))
 
-        # Dates: preserve valid partial dates; do not impute.
         out["RFSTDTC"] = to_iso_partial_date(get_row_value(src_row, "RFSTDTC", "REF_START_DT"))
         out["BRTHDTC"] = to_iso_partial_date(get_row_value(src_row, "BRTHDTC", "DATE_OF_BIRTH"))
         out["DTHDTC"] = to_iso_partial_date(get_row_value(src_row, "DTHDTC", "DEATH_DATE"))
 
-        # AGE: sponsor rule says derive if full DOB and full RFSTDTC available, else keep collected.
         collected_age = normalize_age_token(get_row_value(src_row, "AGE", "AGE_AT_REF"))
         if sponsor_rules.get("age_rule", {}).get("derive_if_full_dates_available", True) and is_full_date(out["BRTHDTC"]) and is_full_date(out["RFSTDTC"]):
             derived_age = calculate_age_years(out["BRTHDTC"], out["RFSTDTC"])
@@ -287,10 +296,8 @@ def build_dm(source_df: pd.DataFrame, ct_lut: Dict[tuple, str], study_meta: dict
         else:
             out["AGE"] = collected_age
 
-        # AGEU: use sponsor default when AGE exists
         out["AGEU"] = standardize_ageu(get_row_value(src_row, "AGEU", "AGE_UNITS"), out["AGE"] is not None, sponsor_rules, ct_lut)
 
-        # CT standardization
         out["SEX"] = apply_ct("SEX", get_row_value(src_row, "SEX", "SEX_AT_BIRTH"), ct_lut) if get_row_value(src_row, "SEX", "SEX_AT_BIRTH") is not None else None
         out["RACE"] = apply_ct("RACE", get_row_value(src_row, "RACE", "RACE_CAT"), ct_lut) if get_row_value(src_row, "RACE", "RACE_CAT") is not None else None
         out["ETHNIC"] = apply_ct("ETHNIC", get_row_value(src_row, "ETHNIC", "ETHNIC_GRP"), ct_lut) if get_row_value(src_row, "ETHNIC", "ETHNIC_GRP") is not None else None
@@ -303,25 +310,18 @@ def build_dm(source_df: pd.DataFrame, ct_lut: Dict[tuple, str], study_meta: dict
 
         out["DTHFL"] = standardize_dthfl(get_row_value(src_row, "DTHFL", "DEATH_IND"), out["DTHDTC"], sponsor_rules, ct_lut)
 
-        # USUBJID last, after STUDYID/SITEID/SUBJID are standardized
-        helper_row = {
-            **{k: src_row.get(k) for k in src_row.index},
-            **out
-        }
+        helper_row = {**{k: src_row.get(k) for k in src_row.index}, **out}
         out["USUBJID"] = derive_usubjid(helper_row, sponsor_rules)
 
-        # -------- Validation / gating --------
         for req in required_for_final:
             if not out.get(req):
                 row_issues.append(f"{req} missing")
                 hard_fail = True
 
-        # Study-specific SUBJID pattern only if sponsor says so
         if out.get("SUBJID") and subjid_re and not subjid_re.fullmatch(str(out["SUBJID"])):
             row_issues.append("SUBJID violates sponsor pattern")
             hard_fail = True
 
-        # AGE numeric if present
         if out.get("AGE") is not None:
             try:
                 age_num = float(out["AGE"])
@@ -332,19 +332,16 @@ def build_dm(source_df: pd.DataFrame, ct_lut: Dict[tuple, str], study_meta: dict
                 row_issues.append("AGE not numeric")
                 hard_fail = True
 
-        # AGEU rule
         if out.get("AGE") is not None and sponsor_rules.get("ageu_rule", {}).get("default_if_age_present") == "YEARS":
             if out.get("AGEU") != "YEARS":
                 row_issues.append("AGE present but AGEU not standardized to YEARS")
                 hard_fail = True
 
-        # COUNTRY rule
         if out.get("COUNTRY") is not None:
             if sponsor_rules.get("country_rule", {}).get("target_standard") == "ISO 3166-1 alpha-3" and len(str(out["COUNTRY"])) != 3:
                 row_issues.append("COUNTRY not ISO alpha-3")
                 hard_fail = True
 
-        # DTHFL/DTHDTC consistency
         if out.get("DTHFL") == "Y" and not out.get("DTHDTC") and sponsor_rules.get("dthfl_rule", {}).get("set_Y_if_dthdtc_present", True):
             row_issues.append("DTHFL=Y but DTHDTC missing")
             hard_fail = True
@@ -352,7 +349,6 @@ def build_dm(source_df: pd.DataFrame, ct_lut: Dict[tuple, str], study_meta: dict
             row_issues.append("DTHDTC populated but DTHFL not Y")
             hard_fail = True
 
-        # Chronology checks
         b = partial_sort_key(out.get("BRTHDTC"))
         r = partial_sort_key(out.get("RFSTDTC"))
         d = partial_sort_key(out.get("DTHDTC"))
@@ -364,7 +360,10 @@ def build_dm(source_df: pd.DataFrame, ct_lut: Dict[tuple, str], study_meta: dict
                 row_issues.append("DTHDTC before RFSTDTC")
                 hard_fail = True
 
-        # Loss check: no unexpected loss versus Layer 1
+        # Minimal patch:
+        # Missing DTHDTC must only fail when DTHFL = Y.
+        # So if DTHDTC is lost during normalization/standardization while DTHFL is blank,
+        # do not treat that as unexpected data loss.
         allowed_loss_fields = set(sponsor_rules.get("allowed_intentional_loss_fields", ["DTHFL"]))
         loss_fields = []
         for c in FINAL_COLUMNS:
@@ -373,14 +372,16 @@ def build_dm(source_df: pd.DataFrame, ct_lut: Dict[tuple, str], study_meta: dict
             if before not in [None, ""] and after in [None, ""]:
                 if c in allowed_loss_fields:
                     continue
+                if c == "DTHDTC" and out.get("DTHFL") != "Y":
+                    continue
                 loss_fields.append(c)
         if loss_fields:
             row_issues.append("Unexpected data loss in fields: " + ", ".join(loss_fields))
             hard_fail = True
 
-        record = {c: out.get(c) for c in FINAL_COLUMNS}
-        record["SOURCE_ROW_NUMBER"] = i + 1
-        record["ROW_ISSUES"] = " | ".join(row_issues)
+        exception_record = {c: out.get(c) for c in FINAL_COLUMNS}
+        exception_record["SOURCE_ROW_NUMBER"] = i + 1
+        exception_record["ROW_ISSUES"] = " | ".join(row_issues)
 
         qc_rows.append({
             "SOURCE_ROW_NUMBER": i + 1,
@@ -391,27 +392,30 @@ def build_dm(source_df: pd.DataFrame, ct_lut: Dict[tuple, str], study_meta: dict
         })
 
         if hard_fail:
-            exception_rows.append(record)
+            exception_rows.append(exception_record)
         else:
-            final_rows.append(record)
+            final_rows.append({c: out.get(c) for c in FINAL_COLUMNS})
 
     final_df = pd.DataFrame(final_rows)
     exceptions_df = pd.DataFrame(exception_rows)
     qc_df = pd.DataFrame(qc_rows)
 
-    # Dataset-level uniqueness check in final
     if not final_df.empty and "USUBJID" in final_df.columns:
         dup_mask = final_df["USUBJID"].duplicated(keep=False)
         if dup_mask.any():
             dup_rows = final_df.loc[dup_mask].copy()
-            dup_rows["ROW_ISSUES"] = dup_rows["ROW_ISSUES"].fillna("") + " | Duplicate USUBJID in final DM"
+            dup_rows["SOURCE_ROW_NUMBER"] = ""
+            dup_rows["ROW_ISSUES"] = "Duplicate USUBJID in final DM"
             exceptions_df = pd.concat([exceptions_df, dup_rows], ignore_index=True)
             final_df = final_df.loc[~dup_mask].copy()
 
     return final_df, exceptions_df, qc_df
 
+
 def write_outputs(final_df, exceptions_df, qc_df, used):
     OUTPUT_DIR.mkdir(exist_ok=True)
+    # Final SDTM dataset should contain only CDISC DM variables.
+    final_df = final_df.reindex(columns=FINAL_COLUMNS)
     final_df.to_csv(OUTPUT_DIR / "dm_sdtm_final_v4.csv", index=False)
     exceptions_df.to_csv(OUTPUT_DIR / "dm_sdtm_exceptions_v4.csv", index=False)
     qc_df.to_csv(OUTPUT_DIR / "dm_sdtm_qc_report_v4.csv", index=False)
@@ -430,6 +434,7 @@ def write_outputs(final_df, exceptions_df, qc_df, used):
     )
     (OUTPUT_DIR / "README.txt").write_text(readme, encoding="utf-8")
 
+
 def main():
     source_df, ct_df, study_meta, prog_conv, sponsor_rules, used = load_inputs()
     source_df = normalize_df(source_df, prog_conv)
@@ -442,6 +447,7 @@ def main():
     print("- dm_sdtm_final_v4.csv")
     print("- dm_sdtm_exceptions_v4.csv")
     print("- dm_sdtm_qc_report_v4.csv")
+
 
 if __name__ == "__main__":
     main()
