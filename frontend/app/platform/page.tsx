@@ -1,17 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
-  CheckCircle2,
-  CircleAlert,
   Copy,
   Download,
   FileSpreadsheet,
   FileUp,
   FlaskConical,
-  LoaderCircle,
   ScanSearch,
   ShieldCheck,
   Sparkles,
@@ -21,15 +18,14 @@ import { BackgroundGlow, SiteHeader } from "@/components/site-shell";
 
 type Detection = {
   domain: string;
-  confidence: number;
   matched_columns: string[];
-  all_scores: Record<string, number>;
-  runner_up?: string;
 };
 
-const domainOptions = ["AUTO", "DM", "VS", "LB", "AE"];
+type DomainOption = "AUTO" | "DM" | "VS" | "LB" | "AE";
 
-function StatusPill({ children }: { children: React.ReactNode }) {
+const domainOptions: DomainOption[] = ["AUTO", "DM", "VS", "LB", "AE"];
+
+function StatusPill({ children }: { children: ReactNode }) {
   return (
     <span className="inline-flex items-center gap-2 rounded-full border border-slate-900/10 bg-white/75 px-3 py-1 text-xs text-slate-700 backdrop-blur">
       {children}
@@ -53,7 +49,7 @@ function levelLabel(level: TimelineEvent["level"]) {
 
 export default function PlatformPage() {
   const [file, setFile] = useState<File | null>(null);
-  const [selectedDomain, setSelectedDomain] = useState("AUTO");
+  const [selectedDomain, setSelectedDomain] = useState<DomainOption>("AUTO");
   const [detection, setDetection] = useState<Detection | null>(null);
   const [job, setJob] = useState<JobSummary | null>(null);
   const [busy, setBusy] = useState(false);
@@ -63,19 +59,29 @@ export default function PlatformPage() {
 
   useEffect(() => {
     return () => {
-      if (pollRef.current) window.clearInterval(pollRef.current);
+      if (pollRef.current !== null) {
+        window.clearInterval(pollRef.current);
+      }
     };
   }, []);
 
-  const timeline = job?.timeline?.length
-    ? job.timeline
-    : [{ time: new Date().toISOString(), level: "info" as const, message: "Waiting for file upload." }];
+  const timeline: TimelineEvent[] =
+    job?.timeline?.length && Array.isArray(job.timeline)
+      ? job.timeline
+      : [
+          {
+            time: new Date().toISOString(),
+            level: "info",
+            message: "Waiting for file upload.",
+          },
+        ];
 
   const detectedLabel = useMemo(() => {
-    if (selectedDomain !== "AUTO") return `${selectedDomain} • manual selection`;
-    if (!detection) return file ? "Detecting…" : "No file uploaded";
-    return `${detection.domain} • ${Math.round(detection.confidence * 100)}% confidence`;
-  }, [detection, file, selectedDomain]);
+    if (selectedDomain !== "AUTO") return selectedDomain;
+    if (detecting) return "DETECTING...";
+    if (!detection) return file ? "UNKNOWN" : "UNKNOWN";
+    return detection.domain || "UNKNOWN";
+  }, [detecting, detection, file, selectedDomain]);
 
   const issueCount = useMemo(
     () => timeline.filter((event) => event.level === "error" || event.level === "warning").length,
@@ -92,26 +98,46 @@ export default function PlatformPage() {
 
   async function detectDomain(nextFile?: File | null) {
     const activeFile = nextFile ?? file;
-    if (!activeFile) return;
+    if (!activeFile) {
+      setDetection(null);
+      return;
+    }
+
     if (selectedDomain !== "AUTO") {
       setDetection({
         domain: selectedDomain,
-        confidence: 1,
         matched_columns: [],
-        all_scores: { [selectedDomain]: 1 },
       });
       return;
     }
+
     setDetecting(true);
+
     try {
       const form = new FormData();
       form.append("file", activeFile);
-      const res = await fetch(`${API_BASE_URL}/api/detect-domain`, { method: "POST", body: form });
-      if (!res.ok) throw new Error("Domain detection failed");
-      const data = await res.json();
-      setDetection(data);
+
+      const res = await fetch(`${API_BASE_URL}/api/detect-domain`, {
+        method: "POST",
+        body: form,
+      });
+
+      if (!res.ok) {
+        throw new Error("Domain detection failed");
+      }
+
+      const data: unknown = await res.json();
+      const parsed = data as Partial<Detection>;
+
+      setDetection({
+        domain: parsed.domain ?? "UNKNOWN",
+        matched_columns: Array.isArray(parsed.matched_columns) ? parsed.matched_columns : [],
+      });
     } catch {
-      setDetection(null);
+      setDetection({
+        domain: "UNKNOWN",
+        matched_columns: [],
+      });
     } finally {
       setDetecting(false);
     }
@@ -120,9 +146,11 @@ export default function PlatformPage() {
   async function fetchJob(jobId: string) {
     const res = await fetch(`${API_BASE_URL}/api/jobs/${jobId}`);
     if (!res.ok) return;
+
     const data: JobSummary = await res.json();
     setJob(data);
-    if (["completed", "failed"].includes(data.status) && pollRef.current) {
+
+    if ((data.status === "completed" || data.status === "failed") && pollRef.current !== null) {
       window.clearInterval(pollRef.current);
       pollRef.current = null;
       setBusy(false);
@@ -131,19 +159,31 @@ export default function PlatformPage() {
 
   async function runPipeline() {
     if (!file) return;
+
     setBusy(true);
     setJob(null);
+
     const form = new FormData();
     form.append("file", file);
     form.append("domain", selectedDomain === "AUTO" ? detection?.domain ?? "AUTO" : selectedDomain);
-    const res = await fetch(`${API_BASE_URL}/api/jobs`, { method: "POST", body: form });
+
+    const res = await fetch(`${API_BASE_URL}/api/jobs`, {
+      method: "POST",
+      body: form,
+    });
+
     if (!res.ok) {
       setBusy(false);
       throw new Error("Pipeline job could not be created");
     }
-    const data = await res.json();
+
+    const data: { job_id: string } = await res.json();
+
     await fetchJob(data.job_id);
-    pollRef.current = window.setInterval(() => void fetchJob(data.job_id), 1500);
+
+    pollRef.current = window.setInterval(() => {
+      void fetchJob(data.job_id);
+    }, 1500);
   }
 
   async function copyLogs() {
@@ -162,7 +202,10 @@ export default function PlatformPage() {
 
       <section
         className="relative mx-auto max-w-7xl overflow-hidden rounded-[2rem] px-6 pb-20 pt-14"
-        style={{ background: "linear-gradient(180deg, rgba(139,92,246,0.08), rgba(236,72,153,0.06) 35%, rgba(255,255,255,0.78))" }}
+        style={{
+          background:
+            "linear-gradient(180deg, rgba(139,92,246,0.08), rgba(236,72,153,0.06) 35%, rgba(255,255,255,0.78))",
+        }}
       >
         <BackgroundGlow />
 
@@ -180,7 +223,8 @@ export default function PlatformPage() {
             </h1>
 
             <p className="mt-6 max-w-2xl text-xl leading-8 text-slate-700">
-              Keep the customer view simple: upload the file, auto-detect the domain, run the pipeline, and see every update in one compact place.
+              Keep the customer view simple: upload the file, auto-detect the domain, run the pipeline,
+              and see every update in one compact place.
             </p>
 
             <div className="mt-8 flex flex-wrap gap-4">
@@ -224,7 +268,8 @@ export default function PlatformPage() {
               </div>
               <div className="mt-4 text-4xl font-semibold leading-tight">One run view, full output set</div>
               <p className="mt-3 max-w-xl text-base leading-7 text-slate-600">
-                Keep the run readable in a single console, then let the downloads speak: issue logs, layer 1 files, spec workbook, and SDTM outputs.
+                Keep the run readable in a single console, then let the downloads speak: issue logs, layer 1 files,
+                spec workbook, and SDTM outputs.
               </p>
             </div>
           </div>
@@ -252,6 +297,7 @@ export default function PlatformPage() {
                     setFile(nextFile);
                     setJob(null);
                     setDetection(null);
+
                     if (nextFile && selectedDomain === "AUTO") {
                       void detectDomain(nextFile);
                     }
@@ -275,12 +321,13 @@ export default function PlatformPage() {
                 <select
                   value={selectedDomain}
                   onChange={(e) => {
-                    const next = e.target.value;
+                    const next = e.target.value as DomainOption;
                     setSelectedDomain(next);
+
                     if (next === "AUTO") {
                       void detectDomain();
                     } else {
-                      setDetection({ domain: next, confidence: 1, matched_columns: [], all_scores: { [next]: 1 } });
+                      setDetection({ domain: next, matched_columns: [] });
                     }
                   }}
                   className="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm outline-none"
@@ -305,12 +352,13 @@ export default function PlatformPage() {
                 <div className="rounded-[1.5rem] bg-slate-50 p-6">
                   <div className="text-sm font-medium text-slate-900">Detected domain</div>
                   <div className="mt-2 text-2xl font-semibold text-slate-900">{detectedLabel}</div>
-                  {detection?.runner_up ? <div className="mt-3 text-sm text-slate-500">Runner-up: {detection.runner_up}</div> : null}
                 </div>
                 <div className="rounded-[1.5rem] bg-slate-50 p-6">
                   <div className="text-sm font-medium text-slate-900">Matched columns</div>
                   <div className="mt-2 text-sm leading-7 text-slate-600 max-h-32 overflow-auto">
-                    {detection?.matched_columns?.length ? detection.matched_columns.join(", ") : "Matched-column evidence will appear here automatically after file upload."}
+                    {detection?.matched_columns?.length
+                      ? detection.matched_columns.join(", ")
+                      : "Matched-column evidence will appear here automatically after file upload."}
                   </div>
                 </div>
               </div>
@@ -356,7 +404,10 @@ export default function PlatformPage() {
                 </div>
                 <div className="max-h-[28rem] overflow-auto px-5 py-4 font-mono text-sm leading-7 text-slate-100">
                   {timeline.map((event, index) => (
-                    <div key={`${event.time}-${index}`} className="grid grid-cols-[72px_52px_1fr] gap-3 border-b border-white/5 py-2 last:border-b-0">
+                    <div
+                      key={`${event.time}-${index}`}
+                      className="grid grid-cols-[72px_52px_1fr] gap-3 border-b border-white/5 py-2 last:border-b-0"
+                    >
                       <span className="text-slate-500">{new Date(event.time).toLocaleTimeString()}</span>
                       <span className={levelClass(event.level)}>{levelLabel(event.level)}</span>
                       <span className="whitespace-pre-wrap break-words">{event.message}</span>
@@ -404,7 +455,11 @@ export default function PlatformPage() {
                 </div>
               ) : null}
 
-              {job?.error ? <div className="mt-6 rounded-[1.5rem] border border-red-200 bg-red-50 p-5 text-sm text-red-700">{job.error}</div> : null}
+              {job?.error ? (
+                <div className="mt-6 rounded-[1.5rem] border border-red-200 bg-red-50 p-5 text-sm text-red-700">
+                  {job.error}
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
