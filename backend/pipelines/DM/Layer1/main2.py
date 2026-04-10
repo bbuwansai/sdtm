@@ -119,10 +119,10 @@ def clean_dm(df):
     clean = df.copy()
 
     expected_cols = [
-        "USUBJID", "STUDYID", "SITEID", "SUBJID", "DOMAIN",
-        "RFSTDTC", "BRTHDTC", "DTHFL", "DTHDTC",
-        "SEX", "AGE", "AGEU", "COUNTRY"
-    ]
+    "USUBJID", "STUDYID", "SITEID", "SUBJID", "DOMAIN",
+    "RFSTDTC", "BRTHDTC", "DTHFL", "DTHDTC",
+    "SEX", "AGE", "AGEU", "COUNTRY", "ARM", "ACTARM"
+]
     for col in expected_cols:
         if col not in clean.columns:
             clean[col] = None
