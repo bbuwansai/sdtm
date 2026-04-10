@@ -346,16 +346,37 @@ def clean_dm(df):
                 )
 
     # 7. Required-field checks after allowed hard fixes
-    required_fields = ["STUDYID", "DOMAIN", "USUBJID", "SUBJID", "SITEID", "RFSTDTC"]
-    for idx in clean.index:
-        rec_id = idx + 1
-        for col in required_fields:
-            if normalize_text(clean.at[idx, col]) is None:
-                add_issue(
-                    issues, rec_id, col, "CRITICAL", "MISSING_REQUIRED",
-                    "DM018", f"{col} is required but missing",
-                    None, "must be populated", "N"
-                )
+    required_fields = [
+    "STUDYID", "DOMAIN", "USUBJID", "SUBJID", "SITEID",
+    "RFSTDTC", "ARM", "ACTARM"
+]
+
+for idx in clean.index:
+    rec_id = idx + 1
+    for col in required_fields:
+        if normalize_text(clean.at[idx, col]) is None:
+            add_issue(
+                issues, rec_id, col, "CRITICAL", "MISSING_REQUIRED",
+                "DM018", f"{col} is required but missing",
+                None, "must be populated", "N"
+            )
+
+    arm = normalize_text(clean.at[idx, "ARM"]) if "ARM" in clean.columns else None
+    actarm = normalize_text(clean.at[idx, "ACTARM"]) if "ACTARM" in clean.columns else None
+
+    if arm is None and actarm is not None:
+        add_issue(
+            issues, rec_id, "ARM", "WARNING", "CROSS_FIELD_INCONSISTENCY",
+            "DM018A", "ARM is missing while ACTARM is populated",
+            None, actarm, "N"
+        )
+
+    if arm is not None and actarm is None:
+        add_issue(
+            issues, rec_id, "ACTARM", "WARNING", "CROSS_FIELD_INCONSISTENCY",
+            "DM018B", "ACTARM is missing while ARM is populated",
+            arm, "ACTARM should usually be populated", "N"
+        )
 
     # 8. Duplicate USUBJID after reconstruction
     dupes = clean["USUBJID"][clean["USUBJID"].notna() & clean["USUBJID"].duplicated(keep=False)]
