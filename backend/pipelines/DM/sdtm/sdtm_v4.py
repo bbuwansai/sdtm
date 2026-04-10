@@ -103,15 +103,15 @@ def find_best_file(project_folder: Path, candidates: List[str], required: bool =
 
 
 def auto_detect_inputs(project_folder: Path) -> Dict[str, Optional[Path]]:
-    clean_source_path = find_best_file(project_folder, CLEAN_SOURCE_CANDIDATES, required=True)
-    raw_source_path = find_best_file(project_folder, RAW_SOURCE_CANDIDATES, required=False)
-    ct_path = find_best_file(project_folder, CONTROLLED_TERMS_CANDIDATES, required=True)
-    meta_path = find_best_file(project_folder, STUDY_META_CANDIDATES, required=True)
-    prog_path = find_best_file(project_folder, PROGRAMMING_CONVENTIONS_CANDIDATES, required=True)
-    sponsor_rules_path = find_best_file(project_folder, SPONSOR_RULES_CANDIDATES, required=True)
-    human_path = find_best_file(project_folder, LAYER1_HUMAN_CANDIDATES, required=False)
-    sdtm_fixable_path = find_best_file(project_folder, LAYER1_SDTM_FIXABLE_CANDIDATES, required=False)
-    spec_path = find_best_file(project_folder, SPEC_CANDIDATES, required=False)
+    clean_source_path = first_existing(project_folder, CLEAN_SOURCE_CANDIDATES, required=False) or find_best_file(project_folder, CLEAN_SOURCE_CANDIDATES, required=True)
+    raw_source_path = first_existing(project_folder, RAW_SOURCE_CANDIDATES, required=False) or find_best_file(project_folder, RAW_SOURCE_CANDIDATES, required=False)
+    ct_path = first_existing(project_folder, CONTROLLED_TERMS_CANDIDATES, required=False) or find_best_file(project_folder, CONTROLLED_TERMS_CANDIDATES, required=True)
+    meta_path = first_existing(project_folder, STUDY_META_CANDIDATES, required=False) or find_best_file(project_folder, STUDY_META_CANDIDATES, required=True)
+    prog_path = first_existing(project_folder, PROGRAMMING_CONVENTIONS_CANDIDATES, required=False) or find_best_file(project_folder, PROGRAMMING_CONVENTIONS_CANDIDATES, required=True)
+    sponsor_rules_path = first_existing(project_folder, SPONSOR_RULES_CANDIDATES, required=False) or find_best_file(project_folder, SPONSOR_RULES_CANDIDATES, required=True)
+    human_path = first_existing(project_folder, LAYER1_HUMAN_CANDIDATES, required=False) or find_best_file(project_folder, LAYER1_HUMAN_CANDIDATES, required=False)
+    sdtm_fixable_path = first_existing(project_folder, LAYER1_SDTM_FIXABLE_CANDIDATES, required=False) or find_best_file(project_folder, LAYER1_SDTM_FIXABLE_CANDIDATES, required=False)
+    spec_path = first_existing(project_folder, SPEC_CANDIDATES, required=False) or find_best_file(project_folder, SPEC_CANDIDATES, required=False)
 
     return {
         "clean_source": clean_source_path,
@@ -467,6 +467,10 @@ def should_apply_sdtm_fix(rownum: int, field_name: str, sdtm_fixable_df: pd.Data
     return has_field_issue(rownum, field_name, sdtm_fixable_df)
 
 
+def has_human_field_issue(rownum: int, field_name: str, human_df: pd.DataFrame) -> bool:
+    return has_field_issue(rownum, field_name, human_df)
+
+
 def build_dm_row(
     src_row: pd.Series,
     rownum: int,
@@ -646,6 +650,10 @@ def validate_dm_row(
 
     if rownum in rows_with_human_issues(human_df):
         row_issues.append("Row has HUMAN_REVIEW issues from Layer 1; excluded from final SDTM until resolved")
+        hard_fail = True
+
+    if has_human_field_issue(rownum, "ARM", human_df) or has_human_field_issue(rownum, "ACTARM", human_df):
+        row_issues.append("ARM/ACTARM has HUMAN_REVIEW issue from Layer 1; excluded from final SDTM until resolved")
         hard_fail = True
 
     unresolved_sdtm = []
