@@ -340,17 +340,6 @@ def get_row_value(row: pd.Series, *candidates: str) -> Optional[str]:
     return None
 
 
-def normalize_placeholder_missing(value: Optional[str]) -> Optional[str]:
-    if value is None:
-        return None
-    if pd.isna(value):
-        return None
-    s = str(value).strip()
-    if s.upper() in {"", "NAN", "NONE", "NULL"}:
-        return None
-    return s
-
-
 def summarize_issue_log(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return pd.DataFrame(columns=["source_row_number", "issue_count", "rule_ids", "messages", "fields"])
@@ -524,14 +513,13 @@ def build_dm_row(
         out["AGE"] = collected_age
 
     can_fix_ageu = should_apply_sdtm_fix(rownum, "AGEU", sdtm_fixable_df, sdtm_fixable_rows)
-    raw_ageu = normalize_placeholder_missing(get_row_value(src_row, "AGEU", "AGE_UNITS"))
     if can_fix_ageu:
-        new_ageu = standardize_ageu(raw_ageu, out["AGE"] is not None, sponsor_rules, ct_lut)
-        if new_ageu != raw_ageu and new_ageu is not None:
+        new_ageu = standardize_ageu(get_row_value(src_row, "AGEU", "AGE_UNITS"), out["AGE"] is not None, sponsor_rules, ct_lut)
+        if new_ageu != get_row_value(src_row, "AGEU", "AGE_UNITS") and new_ageu is not None:
             auto_actions.append("Standardized or defaulted AGEU")
-        out["AGEU"] = normalize_placeholder_missing(new_ageu)
+        out["AGEU"] = new_ageu
     else:
-        out["AGEU"] = raw_ageu
+        out["AGEU"] = get_row_value(src_row, "AGEU", "AGE_UNITS")
 
     out["SEX"] = get_row_value(src_row, "SEX", "SEX_AT_BIRTH")
     out["RACE"] = apply_ct("RACE", get_row_value(src_row, "RACE", "RACE_CAT"), ct_lut) if get_row_value(src_row, "RACE", "RACE_CAT") is not None else None
@@ -555,14 +543,6 @@ def build_dm_row(
     else:
         out["USUBJID"] = get_row_value(src_row, "USUBJID")
 
-    # Final AGEU safety net:
-    # if AGE is present, never allow AGEU to remain blank, NaN, or placeholder text.
-    out["AGEU"] = normalize_placeholder_missing(out.get("AGEU"))
-    if out.get("AGE") is not None and out.get("AGEU") != "YEARS":
-        out["AGEU"] = "YEARS"
-        if "Standardized or defaulted AGEU" not in auto_actions:
-            auto_actions.append("Standardized or defaulted AGEU")
-
     return out, row_issues, auto_actions
 
 
@@ -584,7 +564,8 @@ def validate_dm_row(
     else:
         subjid_re = None
 
-    required_for_final = set(sponsor_rules.get("required_for_demo_final", ["STUDYID","DOMAIN","USUBJID","SUBJID","SITEID","SEX","ARM","ACTARM"]))
+    required_for_final = set(sponsor_rules.get("required_for_demo_final", ["STUDYID","DOMAIN","USUBJID","SUBJID","SITEID","SEX"]))
+    required_for_final.update({"ARM", "ACTARM"})
 
     for req in required_for_final:
         if not out.get(req):
