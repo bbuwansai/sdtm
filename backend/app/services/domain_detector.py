@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Set, Tuple
+from typing import Dict, Iterable, List, Optional, Set, Tuple, Any
 
 import pandas as pd
 
@@ -71,6 +71,33 @@ COLUMN_ALIASES: Dict[str, str] = {
     "ASSIGNEDTREATMENT": "ASSIGNED TREATMENT",
     "COUNTRYOFSITE": "COUNTRY OF SITE",
     "SCREENFAILUREFLAG": "SCREEN FAILURE FLAG",
+    "AETERM": "AE TERM",
+    "AE_START_DATE_RAW": "AE START DATE RAW",
+    "AE_SEVERITY_RAW": "AE SEVERITY RAW",
+    "AEYN_RAW": "AEYN RAW",
+    "AE_OUTCOME_RAW": "AE OUTCOME RAW",
+    "AE_SER_RAW": "AE SER RAW",
+    "AE_ONGOING_RAW": "AE ONGOING RAW",
+    "AE_REL_STUDY_DRUG_RAW": "AE REL STUDY DRUG RAW",
+    "VISITDT_RAW": "VISITDT RAW",
+    "ENTRY_STATUS_RAW": "ENTRY STATUS RAW",
+    "TEST_CODE_RAW": "TEST CODE RAW",
+    "TEST_NAME_RAW": "TEST NAME RAW",
+    "RESULT_RAW": "RESULT RAW",
+    "ORIG_UNIT_RAW": "ORIG UNIT RAW",
+    "SPECIMEN_RAW": "SPECIMEN RAW",
+    "RESULT_NUM_RAW": "RESULT NUM RAW",
+    "ABN_FLAG_RAW": "ABN FLAG RAW",
+    "NOT_DONE_RAW": "NOT DONE RAW",
+    "VS_TEST_RAW": "VS TEST RAW",
+    "VS_RESULT_RAW": "VS RESULT RAW",
+    "VS_UNIT_RAW": "VS UNIT RAW",
+    "VS_DATE": "VS DATE",
+    "VISIT_NAME": "VISIT NAME",
+    "VS_TIME": "VS TIME",
+    "PROTOCOL_ID": "PROTOCOL ID",
+    "SITE_NUMBER": "SITE NUMBER",
+    "SUBJECT_NUMBER": "SUBJECT NUMBER",
 }
 
 FILENAME_HINTS: Dict[str, str] = {
@@ -97,7 +124,7 @@ def _matched_columns_for_domain(domain: str, columns: Set[str]) -> List[str]:
     return sorted((columns & rules["strong"]) | (columns & rules["weak"]))
 
 
-def _score_domains(columns: Set[str]) -> Tuple[Optional[str], List[str]]:
+def _score_domains(columns: Set[str]) -> Tuple[Optional[str], List[str], Dict[str, int]]:
     scores: Dict[str, int] = {}
 
     for domain, rules in DOMAIN_RULES.items():
@@ -109,10 +136,10 @@ def _score_domains(columns: Set[str]) -> Tuple[Optional[str], List[str]]:
     best_score = scores[best_domain]
 
     if best_score == 0:
-        return None, []
+        return None, [], scores
 
     matched_columns = _matched_columns_for_domain(best_domain, columns)
-    return best_domain, matched_columns
+    return best_domain, matched_columns, scores
 
 
 def _filename_hint(filename: Optional[str]) -> Tuple[Optional[str], List[str]]:
@@ -125,11 +152,70 @@ def _filename_hint(filename: Optional[str]) -> Tuple[Optional[str], List[str]]:
     return None, []
 
 
+def _read_columns_from_file(path_like: str) -> Optional[List[str]]:
+    try:
+        path = Path(path_like)
+        if not path.exists() or not path.is_file():
+            return None
+
+        suffix = path.suffix.lower()
+        if suffix == ".csv":
+            df = pd.read_csv(path, nrows=0)
+            return list(df.columns)
+        if suffix in {".xlsx", ".xls"}:
+            df = pd.read_excel(path, nrows=0)
+            return list(df.columns)
+    except Exception:
+        return None
+    return None
+
+
+def _extract_inputs(value: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Tuple[Optional[List[str]], Optional[str]]:
+    filename: Optional[str] = kwargs.get("filename")
+    columns: Optional[List[str]] = None
+
+    all_values: List[Any] = [value, *args, *kwargs.values()]
+
+    for item in all_values:
+        if isinstance(item, pd.DataFrame):
+            columns = list(item.columns)
+            break
+
+    if columns is None:
+        for item in all_values:
+            if isinstance(item, (list, tuple, set)):
+                try:
+                    cols = list(item)
+                    if cols and all(not isinstance(x, (dict, pd.DataFrame)) for x in cols):
+                        columns = [str(x) for x in cols]
+                        break
+                except Exception:
+                    pass
+
+    possible_strings: List[str] = []
+    for item in all_values:
+        if isinstance(item, (str, Path)):
+            possible_strings.append(str(item))
+
+    if filename is None and possible_strings:
+        filename = possible_strings[0]
+
+    if columns is None:
+        for s in possible_strings:
+            cols = _read_columns_from_file(s)
+            if cols:
+                columns = cols
+                if filename is None:
+                    filename = s
+                break
+
+    return columns, filename
+
+
 def detect_domain_from_columns(columns: Iterable[object], filename: Optional[str] = None) -> Dict[str, object]:
     cols = _normalize_columns(columns)
-    domain, matched_columns = _score_domains(cols)
+    domain, matched_columns, _scores = _score_domains(cols)
 
-    # 🔥 Always fallback to filename
     if domain is None:
         hinted_domain, hint_columns = _filename_hint(filename)
         if hinted_domain:
@@ -138,7 +224,6 @@ def detect_domain_from_columns(columns: Iterable[object], filename: Optional[str
                 "matched_columns": hint_columns,
             }
 
-    # 🔥 Final fallback → NEVER return None
     if domain is None:
         return {
             "domain": "UNKNOWN",
@@ -156,22 +241,19 @@ def detect_domain_from_dataframe(df: pd.DataFrame, filename: Optional[str] = Non
 
 
 def detect_domain(value, *args, **kwargs) -> Dict[str, object]:
-    filename = kwargs.get("filename")
+    columns, filename = _extract_inputs(value, args, kwargs)
 
-    if isinstance(value, pd.DataFrame):
-        if args and isinstance(args[0], str):
-            filename = args[0]
-        return detect_domain_from_dataframe(value, filename=filename)
+    if columns is not None:
+        return detect_domain_from_columns(columns, filename=filename)
 
-    if isinstance(value, str):
-        if args and isinstance(args[0], pd.DataFrame):
-            return detect_domain_from_dataframe(args[0], filename=value)
-
-        hinted_domain, hint_columns = _filename_hint(value)
-
+    hinted_domain, hint_columns = _filename_hint(filename)
+    if hinted_domain:
         return {
-            "domain": hinted_domain if hinted_domain else "UNKNOWN",
+            "domain": hinted_domain,
             "matched_columns": hint_columns,
         }
 
-    return detect_domain_from_columns(value, filename=filename)
+    return {
+        "domain": "UNKNOWN",
+        "matched_columns": [],
+    }
