@@ -13,22 +13,24 @@ AGEU_MAP = {"years": "YEARS", "yrs": "YEARS", "yr": "YEARS", "y": "YEARS"}
 DTHFL_MAP = {"yes": "Y", "no": "N", "y": "Y", "n": "N"}
 COUNTRY_MAP = {"INDIA": "IND", "UNITED STATES": "USA", "UK": "GBR"}
 
+
 def normalize_text(x):
     if pd.isna(x):
         return None
     x = str(x).strip()
     return x if x != "" else None
 
+
 def normalize_siteid(x):
     x = normalize_text(x)
     if x is None:
         return None
-    # Keep identifier style; remove accidental .0 and zero-pad digits to 3
     if re.fullmatch(r"\d+\.0", x):
         x = x[:-2]
     if re.fullmatch(r"\d+", x):
         return x.zfill(3)
     return x
+
 
 def normalize_subjid(x):
     x = normalize_text(x)
@@ -37,6 +39,7 @@ def normalize_subjid(x):
     if re.fullmatch(r"\d+\.0", x):
         x = x[:-2]
     return x
+
 
 def parse_partial_date(s):
     s = normalize_text(s)
@@ -56,12 +59,14 @@ def parse_partial_date(s):
 
     return {"raw": s, "granularity": "INVALID", "date": pd.NaT, "valid": False}
 
+
 def infer_studyid(series):
     vals = [normalize_text(v) for v in series.tolist()]
     vals = [v for v in vals if v is not None]
     if not vals:
         return None
     return pd.Series(vals).mode().iloc[0]
+
 
 def derive_usubjid(studyid, siteid, subjid):
     studyid = normalize_text(studyid)
@@ -70,6 +75,7 @@ def derive_usubjid(studyid, siteid, subjid):
     if studyid and siteid and subjid:
         return f"{studyid}-{siteid}-{subjid}"
     return None
+
 
 def parse_usubjid(usubjid):
     usubjid = normalize_text(usubjid)
@@ -83,6 +89,7 @@ def parse_usubjid(usubjid):
         "SITEID": normalize_siteid(parts[1]),
         "SUBJID": normalize_subjid(parts[2]),
     }
+
 
 def add_issue(issues, rec_id, field, severity, category, rule_id, rule_description,
               observed, expected=None, auto_fix_applied="N"):
@@ -98,6 +105,7 @@ def add_issue(issues, rec_id, field, severity, category, rule_id, rule_descripti
         "auto_fix_applied": auto_fix_applied
     })
 
+
 def row_disposition_for_severities(severities):
     if "CRITICAL" in severities:
         return "FAIL_REVIEW_REQUIRED"
@@ -105,21 +113,30 @@ def row_disposition_for_severities(severities):
         return "PASS_WITH_WARNINGS"
     return "PASS"
 
+
 def clean_dm(df):
     issues = []
     clean = df.copy()
 
-    # Ensure expected columns exist even if raw CRF does not carry full SDTM-style identifiers
-    for col in ["USUBJID", "STUDYID", "SITEID", "SUBJID", "DOMAIN", "RFSTDTC", "BRTHDTC", "DTHFL", "DTHDTC", "SEX", "AGE", "AGEU", "COUNTRY"]:
+    expected_cols = [
+        "USUBJID", "STUDYID", "SITEID", "SUBJID", "DOMAIN",
+        "RFSTDTC", "BRTHDTC", "DTHFL", "DTHDTC",
+        "SEX", "AGE", "AGEU", "COUNTRY"
+    ]
+    for col in expected_cols:
         if col not in clean.columns:
             clean[col] = None
 
-    # Important fix: preserve identifiers like 001 by reading as strings in main()
+    # Keep identifiers / coded fields / dates as text
     for col in TEXT_COLS:
         if col in clean.columns:
             clean[col] = clean[col].apply(normalize_text)
 
-    # Normalize identifier-like components explicitly
+    # AGE is intentionally numeric for downstream validation and derivation checks
+    if "AGE" in clean.columns:
+        clean["AGE"] = pd.to_numeric(clean["AGE"], errors="coerce").astype("Float64")
+
+    # Normalize identifiers explicitly
     if "SITEID" in clean.columns:
         clean["SITEID"] = clean["SITEID"].apply(normalize_siteid)
     if "SUBJID" in clean.columns:
@@ -160,85 +177,111 @@ def clean_dm(df):
             )
     clean["DOMAIN"] = "DM"
 
-    # 3. Standardize selected coded values
+    # 3. Standardize selected coded values and validate AGE
     for idx in clean.index:
         rec_id = idx + 1
 
         sex = clean.at[idx, "SEX"] if "SEX" in clean.columns else None
         if sex is None:
-            add_issue(issues, rec_id, "SEX", "WARNING", "MISSING_REQUIRED",
-                      "DM004", "SEX missing", None, "M/F/U", "N")
+            add_issue(
+                issues, rec_id, "SEX", "WARNING", "MISSING_REQUIRED",
+                "DM004", "SEX missing", None, "M/F/U", "N"
+            )
         else:
             sex_std = SEX_MAP.get(sex.lower(), sex.upper())
             if sex_std in {"M", "F", "U"}:
                 if sex != sex_std:
                     clean.at[idx, "SEX"] = sex_std
-                    add_issue(issues, rec_id, "SEX", "INFO", "STANDARDIZATION",
-                              "DM005", "SEX standardized to coded value",
-                              sex, sex_std, "Y")
+                    add_issue(
+                        issues, rec_id, "SEX", "INFO", "STANDARDIZATION",
+                        "DM005", "SEX standardized to coded value",
+                        sex, sex_std, "Y"
+                    )
             else:
-                add_issue(issues, rec_id, "SEX", "WARNING", "INVALID_CODE",
-                          "DM006", "SEX not in allowed coded values",
-                          sex, "M/F/U", "N")
+                add_issue(
+                    issues, rec_id, "SEX", "WARNING", "INVALID_CODE",
+                    "DM006", "SEX not in allowed coded values",
+                    sex, "M/F/U", "N"
+                )
 
-        original_age = clean.at[idx, "AGE"] if "AGE" in clean.columns else np.nan
-        age_num = pd.to_numeric(original_age, errors="coerce")
-        if "AGE" in clean.columns:
-            clean.at[idx, "AGE"] = age_num if pd.notna(age_num) else np.nan
+        original_age = df.loc[idx, "AGE"] if "AGE" in df.columns else None
+        age_num = clean.at[idx, "AGE"] if "AGE" in clean.columns else pd.NA
+
         if pd.isna(age_num):
-            add_issue(issues, rec_id, "AGE", "WARNING", "INVALID_FORMAT",
-                      "DM007", "AGE missing or non-numeric",
-                      original_age, "numeric", "N")
+            add_issue(
+                issues, rec_id, "AGE", "WARNING", "INVALID_FORMAT",
+                "DM007", "AGE missing or non-numeric",
+                original_age, "numeric", "N"
+            )
         else:
             if age_num < 18:
-                add_issue(issues, rec_id, "AGE", "CRITICAL", "IMPLAUSIBLE_VALUE",
-                          "DM008", "AGE below adult threshold",
-                          original_age, ">=18", "N")
+                add_issue(
+                    issues, rec_id, "AGE", "CRITICAL", "IMPLAUSIBLE_VALUE",
+                    "DM008", "AGE below adult threshold",
+                    original_age, ">=18", "N"
+                )
             if age_num > 120:
-                add_issue(issues, rec_id, "AGE", "CRITICAL", "IMPLAUSIBLE_VALUE",
-                          "DM009", "AGE implausibly high",
-                          original_age, "<=120", "N")
+                add_issue(
+                    issues, rec_id, "AGE", "CRITICAL", "IMPLAUSIBLE_VALUE",
+                    "DM009", "AGE implausibly high",
+                    original_age, "<=120", "N"
+                )
 
         ageu = clean.at[idx, "AGEU"] if "AGEU" in clean.columns else None
         if ageu is None:
-            add_issue(issues, rec_id, "AGEU", "WARNING", "MISSING_REQUIRED",
-                      "DM010", "AGEU missing", None, "YEARS", "N")
+            add_issue(
+                issues, rec_id, "AGEU", "WARNING", "MISSING_REQUIRED",
+                "DM010", "AGEU missing", None, "YEARS", "N"
+            )
         else:
             ageu_std = AGEU_MAP.get(ageu.lower(), ageu.upper())
             if ageu_std == "YEARS":
                 if ageu != ageu_std:
                     clean.at[idx, "AGEU"] = "YEARS"
-                    add_issue(issues, rec_id, "AGEU", "INFO", "STANDARDIZATION",
-                              "DM011", "AGEU standardized to YEARS",
-                              ageu, "YEARS", "Y")
+                    add_issue(
+                        issues, rec_id, "AGEU", "INFO", "STANDARDIZATION",
+                        "DM011", "AGEU standardized to YEARS",
+                        ageu, "YEARS", "Y"
+                    )
             else:
-                add_issue(issues, rec_id, "AGEU", "WARNING", "INVALID_CODE",
-                          "DM012", "AGEU has unexpected value",
-                          ageu, "YEARS", "N")
+                add_issue(
+                    issues, rec_id, "AGEU", "WARNING", "INVALID_CODE",
+                    "DM012", "AGEU has unexpected value",
+                    ageu, "YEARS", "N"
+                )
 
         dthfl = clean.at[idx, "DTHFL"] if "DTHFL" in clean.columns else None
         if dthfl is None:
-            add_issue(issues, rec_id, "DTHFL", "WARNING", "MISSING_REQUIRED",
-                      "DM013", "DTHFL missing", None, "Y/N", "N")
+            add_issue(
+                issues, rec_id, "DTHFL", "WARNING", "MISSING_REQUIRED",
+                "DM013", "DTHFL missing", None, "Y/N", "N"
+            )
         else:
             dthfl_std = DTHFL_MAP.get(dthfl.lower(), dthfl.upper())
             if dthfl_std in {"Y", "N"}:
                 if dthfl != dthfl_std:
                     clean.at[idx, "DTHFL"] = dthfl_std
-                    add_issue(issues, rec_id, "DTHFL", "INFO", "STANDARDIZATION",
-                              "DM014", "DTHFL standardized to coded value",
-                              dthfl, dthfl_std, "Y")
+                    add_issue(
+                        issues, rec_id, "DTHFL", "INFO", "STANDARDIZATION",
+                        "DM014", "DTHFL standardized to coded value",
+                        dthfl, dthfl_std, "Y"
+                    )
             else:
-                add_issue(issues, rec_id, "DTHFL", "WARNING", "INVALID_CODE",
-                          "DM015", "DTHFL has invalid coded value",
-                          dthfl, "Y/N", "N")
+                add_issue(
+                    issues, rec_id, "DTHFL", "WARNING", "INVALID_CODE",
+                    "DM015", "DTHFL has invalid coded value",
+                    dthfl, "Y/N", "N"
+                )
 
         country = clean.at[idx, "COUNTRY"] if "COUNTRY" in clean.columns else None
-        if country in COUNTRY_MAP:
-            clean.at[idx, "COUNTRY"] = COUNTRY_MAP[country]
-            add_issue(issues, rec_id, "COUNTRY", "INFO", "STANDARDIZATION",
-                      "DM016", "COUNTRY standardized",
-                      country, COUNTRY_MAP[country], "Y")
+        country_key = country.upper() if isinstance(country, str) else country
+        if country_key in COUNTRY_MAP:
+            clean.at[idx, "COUNTRY"] = COUNTRY_MAP[country_key]
+            add_issue(
+                issues, rec_id, "COUNTRY", "INFO", "STANDARDIZATION",
+                "DM016", "COUNTRY standardized",
+                country, COUNTRY_MAP[country_key], "Y"
+            )
 
     # 4. Recover SITEID/SUBJID from existing USUBJID when possible
     for idx in clean.index:
@@ -249,17 +292,21 @@ def clean_dm(df):
 
         if clean.at[idx, "SITEID"] is None and parsed["SITEID"] is not None:
             clean.at[idx, "SITEID"] = parsed["SITEID"]
-            add_issue(issues, rec_id, "SITEID", "INFO", "AUTO_FILL",
-                      "DM017A", "SITEID filled from existing USUBJID",
-                      None, parsed["SITEID"], "Y")
+            add_issue(
+                issues, rec_id, "SITEID", "INFO", "AUTO_FILL",
+                "DM017A", "SITEID filled from existing USUBJID",
+                None, parsed["SITEID"], "Y"
+            )
 
         if clean.at[idx, "SUBJID"] is None and parsed["SUBJID"] is not None:
             clean.at[idx, "SUBJID"] = parsed["SUBJID"]
-            add_issue(issues, rec_id, "SUBJID", "INFO", "AUTO_FILL",
-                      "DM017B", "SUBJID filled from existing USUBJID",
-                      None, parsed["SUBJID"], "Y")
+            add_issue(
+                issues, rec_id, "SUBJID", "INFO", "AUTO_FILL",
+                "DM017B", "SUBJID filled from existing USUBJID",
+                None, parsed["SUBJID"], "Y"
+            )
 
-    # 5. Reconstruct missing USUBJID AFTER STUDYID normalization
+    # 5. Reconstruct missing USUBJID after STUDYID normalization
     for idx in clean.index:
         rec_id = idx + 1
         if clean.at[idx, "USUBJID"] is None:
@@ -268,9 +315,11 @@ def clean_dm(df):
             )
             if new_usubjid is not None:
                 clean.at[idx, "USUBJID"] = new_usubjid
-                add_issue(issues, rec_id, "USUBJID", "INFO", "AUTO_FILL",
-                          "DM017", "USUBJID reconstructed from STUDYID/SITEID/SUBJID",
-                          None, new_usubjid, "Y")
+                add_issue(
+                    issues, rec_id, "USUBJID", "INFO", "AUTO_FILL",
+                    "DM017", "USUBJID reconstructed from STUDYID/SITEID/SUBJID",
+                    None, new_usubjid, "Y"
+                )
 
     # 6. Check existing USUBJID components match STUDYID/SITEID/SUBJID
     for idx in clean.index:
@@ -278,34 +327,44 @@ def clean_dm(df):
         usubjid = clean.at[idx, "USUBJID"]
         parsed = parse_usubjid(usubjid)
         if usubjid is not None and parsed is None:
-            add_issue(issues, rec_id, "USUBJID", "CRITICAL", "INVALID_FORMAT",
-                      "DM017C", "USUBJID format invalid; expected STUDYID-SITEID-SUBJID",
-                      usubjid, "AAA-001-1001", "N")
+            add_issue(
+                issues, rec_id, "USUBJID", "CRITICAL", "INVALID_FORMAT",
+                "DM017C", "USUBJID format invalid; expected STUDYID-SITEID-SUBJID",
+                usubjid, "AAA-001-1001", "N"
+            )
             continue
 
         if parsed is not None:
-            expected_usubjid = derive_usubjid(clean.at[idx, "STUDYID"], clean.at[idx, "SITEID"], clean.at[idx, "SUBJID"])
+            expected_usubjid = derive_usubjid(
+                clean.at[idx, "STUDYID"], clean.at[idx, "SITEID"], clean.at[idx, "SUBJID"]
+            )
             if expected_usubjid is not None and usubjid != expected_usubjid:
-                add_issue(issues, rec_id, "USUBJID", "CRITICAL", "CROSS_FIELD_INCONSISTENCY",
-                          "DM017D", "USUBJID does not match STUDYID/SITEID/SUBJID",
-                          usubjid, expected_usubjid, "N")
+                add_issue(
+                    issues, rec_id, "USUBJID", "CRITICAL", "CROSS_FIELD_INCONSISTENCY",
+                    "DM017D", "USUBJID does not match STUDYID/SITEID/SUBJID",
+                    usubjid, expected_usubjid, "N"
+                )
 
-    # 7. Required-field checks AFTER allowed hard fixes
+    # 7. Required-field checks after allowed hard fixes
     required_fields = ["STUDYID", "DOMAIN", "USUBJID", "SUBJID", "SITEID", "RFSTDTC"]
     for idx in clean.index:
         rec_id = idx + 1
         for col in required_fields:
             if normalize_text(clean.at[idx, col]) is None:
-                add_issue(issues, rec_id, col, "CRITICAL", "MISSING_REQUIRED",
-                          "DM018", f"{col} is required but missing",
-                          None, "must be populated", "N")
+                add_issue(
+                    issues, rec_id, col, "CRITICAL", "MISSING_REQUIRED",
+                    "DM018", f"{col} is required but missing",
+                    None, "must be populated", "N"
+                )
 
-    # 8. Duplicate USUBJID AFTER reconstruction
+    # 8. Duplicate USUBJID after reconstruction
     dupes = clean["USUBJID"][clean["USUBJID"].notna() & clean["USUBJID"].duplicated(keep=False)]
     for idx, val in dupes.items():
-        add_issue(issues, idx + 1, "USUBJID", "CRITICAL", "UNIQUENESS_VIOLATION",
-                  "DM019", "Duplicate USUBJID found",
-                  val, "must be unique", "N")
+        add_issue(
+            issues, idx + 1, "USUBJID", "CRITICAL", "UNIQUENESS_VIOLATION",
+            "DM019", "Duplicate USUBJID found",
+            val, "must be unique", "N"
+        )
 
     # 9. Date and cross-field checks
     for idx in clean.index:
@@ -316,48 +375,63 @@ def clean_dm(df):
 
         for field, parsed in [("RFSTDTC", rf), ("BRTHDTC", br), ("DTHDTC", dd)]:
             if parsed["granularity"] == "INVALID":
-                add_issue(issues, rec_id, field, "CRITICAL", "INVALID_FORMAT",
-                          "DM020", f"{field} has invalid date format",
-                          clean.at[idx, field], "YYYY or YYYY-MM or YYYY-MM-DD", "N")
+                add_issue(
+                    issues, rec_id, field, "CRITICAL", "INVALID_FORMAT",
+                    "DM020", f"{field} has invalid date format",
+                    clean.at[idx, field], "YYYY or YYYY-MM or YYYY-MM-DD", "N"
+                )
             elif parsed["granularity"] in {"MONTH", "YEAR"}:
-                add_issue(issues, rec_id, field, "WARNING", "PARTIAL_DATE",
-                          "DM021", f"{field} is partial and retained as-is",
-                          clean.at[idx, field], parsed["granularity"], "N")
+                add_issue(
+                    issues, rec_id, field, "WARNING", "PARTIAL_DATE",
+                    "DM021", f"{field} is partial and retained as-is",
+                    clean.at[idx, field], parsed["granularity"], "N"
+                )
 
-        # Full-date chronology checks
         if pd.notna(rf["date"]) and pd.notna(br["date"]) and rf["date"] < br["date"]:
-            add_issue(issues, rec_id, "RFSTDTC", "CRITICAL", "CROSS_FIELD_INCONSISTENCY",
-                      "DM022", "RFSTDTC occurs before BRTHDTC",
-                      clean.at[idx, "RFSTDTC"], f"after {clean.at[idx, 'BRTHDTC']}", "N")
+            add_issue(
+                issues, rec_id, "RFSTDTC", "CRITICAL", "CROSS_FIELD_INCONSISTENCY",
+                "DM022", "RFSTDTC occurs before BRTHDTC",
+                clean.at[idx, "RFSTDTC"], f"after {clean.at[idx, 'BRTHDTC']}", "N"
+            )
 
         if pd.notna(dd["date"]) and pd.notna(br["date"]) and dd["date"] < br["date"]:
-            add_issue(issues, rec_id, "DTHDTC", "CRITICAL", "CROSS_FIELD_INCONSISTENCY",
-                      "DM022A", "DTHDTC occurs before BRTHDTC",
-                      clean.at[idx, "DTHDTC"], f"after {clean.at[idx, 'BRTHDTC']}", "N")
+            add_issue(
+                issues, rec_id, "DTHDTC", "CRITICAL", "CROSS_FIELD_INCONSISTENCY",
+                "DM022A", "DTHDTC occurs before BRTHDTC",
+                clean.at[idx, "DTHDTC"], f"after {clean.at[idx, 'BRTHDTC']}", "N"
+            )
 
         if pd.notna(dd["date"]) and pd.notna(rf["date"]) and dd["date"] < rf["date"]:
-            add_issue(issues, rec_id, "DTHDTC", "WARNING", "DATE_CHRONOLOGY",
-                      "DM022B", "DTHDTC occurs before RFSTDTC",
-                      clean.at[idx, "DTHDTC"], f"on/after {clean.at[idx, 'RFSTDTC']}", "N")
+            add_issue(
+                issues, rec_id, "DTHDTC", "WARNING", "DATE_CHRONOLOGY",
+                "DM022B", "DTHDTC occurs before RFSTDTC",
+                clean.at[idx, "DTHDTC"], f"on/after {clean.at[idx, 'RFSTDTC']}", "N"
+            )
 
-        age_num = pd.to_numeric(clean.at[idx, "AGE"], errors="coerce")
+        age_num = clean.at[idx, "AGE"] if "AGE" in clean.columns else pd.NA
         if pd.notna(rf["date"]) and pd.notna(br["date"]) and pd.notna(age_num):
             calc_age = int((rf["date"] - br["date"]).days / 365.25)
-            if abs(calc_age - age_num) > 2:
-                add_issue(issues, rec_id, "AGE", "WARNING", "DERIVATION_MISMATCH",
-                          "DM023", "AGE inconsistent with BRTHDTC and RFSTDTC",
-                          age_num, f"approx {calc_age}", "N")
+            if abs(calc_age - float(age_num)) > 2:
+                add_issue(
+                    issues, rec_id, "AGE", "WARNING", "DERIVATION_MISMATCH",
+                    "DM023", "AGE inconsistent with BRTHDTC and RFSTDTC",
+                    float(age_num), f"approx {calc_age}", "N"
+                )
 
         dthfl = normalize_text(clean.at[idx, "DTHFL"])
         dthdtc = normalize_text(clean.at[idx, "DTHDTC"])
         if dthfl == "N" and dthdtc is not None:
-            add_issue(issues, rec_id, "DTHDTC", "CRITICAL", "CROSS_FIELD_INCONSISTENCY",
-                      "DM024", "DTHFL=N but DTHDTC is populated",
-                      dthdtc, "blank expected", "N")
+            add_issue(
+                issues, rec_id, "DTHDTC", "CRITICAL", "CROSS_FIELD_INCONSISTENCY",
+                "DM024", "DTHFL=N but DTHDTC is populated",
+                dthdtc, "blank expected", "N"
+            )
         if dthfl == "Y" and dthdtc is None:
-            add_issue(issues, rec_id, "DTHDTC", "CRITICAL", "CROSS_FIELD_INCONSISTENCY",
-                      "DM025", "DTHFL=Y but DTHDTC is missing",
-                      None, "date expected", "N")
+            add_issue(
+                issues, rec_id, "DTHDTC", "CRITICAL", "CROSS_FIELD_INCONSISTENCY",
+                "DM025", "DTHFL=Y but DTHDTC is missing",
+                None, "date expected", "N"
+            )
 
     issues_df = pd.DataFrame(issues)
 
@@ -376,7 +450,9 @@ def clean_dm(df):
         row_disposition_for_severities(sev_map.get(idx + 1, []))
         for idx in clean.index
     ]
+
     return clean, issues_df
+
 
 def main():
     script_dir = Path(__file__).resolve().parent
@@ -395,8 +471,9 @@ def main():
             f"Tried: {[str(p.name) for p in candidates]}"
         )
 
-    # Critical fix: preserve identifier fields exactly as text
+    # Read raw as text so identifiers like 001 stay intact
     df = pd.read_csv(source_csv, dtype=str)
+
     clean_df, issues_df = clean_dm(df)
 
     severity_summary_df = issues_df.groupby("severity").size().reset_index(name="issue_count")
@@ -426,6 +503,7 @@ def main():
     print(f"  - {severity_path.name}")
     print(f"  - {category_path.name}")
     print(f"  - {rule_path.name}")
+
 
 if __name__ == "__main__":
     main()
