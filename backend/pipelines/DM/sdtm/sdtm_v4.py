@@ -512,14 +512,25 @@ def build_dm_row(
     else:
         out["AGE"] = collected_age
 
+    raw_ageu = get_row_value(src_row, "AGEU", "AGE_UNITS")
     can_fix_ageu = should_apply_sdtm_fix(rownum, "AGEU", sdtm_fixable_df, sdtm_fixable_rows)
-    if can_fix_ageu:
-        new_ageu = standardize_ageu(get_row_value(src_row, "AGEU", "AGE_UNITS"), out["AGE"] is not None, sponsor_rules, ct_lut)
-        if new_ageu != get_row_value(src_row, "AGEU", "AGE_UNITS") and new_ageu is not None:
-            auto_actions.append("Standardized or defaulted AGEU")
+
+    # Strict SDTM behavior:
+    # whenever AGE is present, AGEU must be populated and standardized.
+    # Since AGE in this DM pipeline is derived/handled in years, default AGEU to YEARS
+    # during SDTM transformation rather than letting the row fail with a blank AGEU.
+    if out["AGE"] is not None:
+        new_ageu = standardize_ageu(raw_ageu, True, sponsor_rules, ct_lut)
+        if new_ageu != raw_ageu and new_ageu is not None:
+            auto_actions.append("Standardized or defaulted AGEU to YEARS because AGE is present")
+        out["AGEU"] = new_ageu
+    elif can_fix_ageu:
+        new_ageu = standardize_ageu(raw_ageu, False, sponsor_rules, ct_lut)
+        if new_ageu != raw_ageu and new_ageu is not None:
+            auto_actions.append("Standardized AGEU")
         out["AGEU"] = new_ageu
     else:
-        out["AGEU"] = get_row_value(src_row, "AGEU", "AGE_UNITS")
+        out["AGEU"] = raw_ageu
 
     out["SEX"] = get_row_value(src_row, "SEX", "SEX_AT_BIRTH")
     out["RACE"] = apply_ct("RACE", get_row_value(src_row, "RACE", "RACE_CAT"), ct_lut) if get_row_value(src_row, "RACE", "RACE_CAT") is not None else None
