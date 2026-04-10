@@ -181,7 +181,7 @@ def clean_dm(df):
     for idx in clean.index:
         rec_id = idx + 1
 
-        sex = clean.at[idx, "SEX"] if "SEX" in clean.columns else None
+        sex = normalize_text(clean.at[idx, "SEX"]) if "SEX" in clean.columns else None
         if sex is None:
             add_issue(
                 issues, rec_id, "SEX", "WARNING", "MISSING_REQUIRED",
@@ -227,7 +227,7 @@ def clean_dm(df):
                     original_age, "<=120", "N"
                 )
 
-        ageu = clean.at[idx, "AGEU"] if "AGEU" in clean.columns else None
+        ageu = normalize_text(clean.at[idx, "AGEU"]) if "AGEU" in clean.columns else None
         if ageu is None:
             add_issue(
                 issues, rec_id, "AGEU", "WARNING", "MISSING_REQUIRED",
@@ -250,7 +250,7 @@ def clean_dm(df):
                     ageu, "YEARS", "N"
                 )
 
-        dthfl = clean.at[idx, "DTHFL"] if "DTHFL" in clean.columns else None
+        dthfl = normalize_text(clean.at[idx, "DTHFL"]) if "DTHFL" in clean.columns else None
         if dthfl is None:
             add_issue(
                 issues, rec_id, "DTHFL", "WARNING", "MISSING_REQUIRED",
@@ -273,7 +273,7 @@ def clean_dm(df):
                     dthfl, "Y/N", "N"
                 )
 
-        country = clean.at[idx, "COUNTRY"] if "COUNTRY" in clean.columns else None
+        country = normalize_text(clean.at[idx, "COUNTRY"]) if "COUNTRY" in clean.columns else None
         country_key = country.upper() if isinstance(country, str) else country
         if country_key in COUNTRY_MAP:
             clean.at[idx, "COUNTRY"] = COUNTRY_MAP[country_key]
