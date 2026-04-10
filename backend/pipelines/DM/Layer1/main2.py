@@ -471,7 +471,6 @@ for idx in clean.index:
         row_disposition_for_severities(sev_map.get(idx + 1, []))
         for idx in clean.index
     ]
-
     return clean, issues_df
 
 
