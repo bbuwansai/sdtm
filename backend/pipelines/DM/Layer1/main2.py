@@ -348,7 +348,7 @@ def clean_dm(df):
     # 7. Required-field checks after allowed hard fixes
     required_fields = [
         "STUDYID", "DOMAIN", "USUBJID", "SUBJID", "SITEID",
-        "RFSTDTC", "ARM", "ACTARM"
+        "RFSTDTC", "ARM", "AGE", "ACTARM"
     ]
 
     for idx in clean.index:
