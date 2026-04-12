@@ -49,6 +49,8 @@ function levelLabel(level: TimelineEvent["level"]) {
 
 export default function PlatformPage() {
   const [file, setFile] = useState<File | null>(null);
+  const [reviewedHumanFile, setReviewedHumanFile] = useState<File | null>(null);
+  const [phase, setPhase] = useState<"layer1_spec" | "sdtm">("layer1_spec");
   const [selectedDomain, setSelectedDomain] = useState<DomainOption>("AUTO");
   const [detection, setDetection] = useState<Detection | null>(null);
   const [job, setJob] = useState<JobSummary | null>(null);
@@ -157,34 +159,45 @@ export default function PlatformPage() {
     }
   }
 
-  async function runPipeline() {
-    if (!file) return;
+  the file. thefile.async function runPipeline(nextPhase?: "layer1_spec" | "sdtm") {
+  if (!file) return;
 
-    setBusy(true);
-    setJob(null);
+  const activePhase = nextPhase ?? phase;
 
-    const form = new FormData();
-    form.append("file", file);
-    form.append("domain", selectedDomain === "AUTO" ? detection?.domain ?? "AUTO" : selectedDomain);
-
-    const res = await fetch(`${API_BASE_URL}/api/jobs`, {
-      method: "POST",
-      body: form,
-    });
-
-    if (!res.ok) {
-      setBusy(false);
-      throw new Error("Pipeline job could not be created");
-    }
-
-    const data: { job_id: string } = await res.json();
-
-    await fetchJob(data.job_id);
-
-    pollRef.current = window.setInterval(() => {
-      void fetchJob(data.job_id);
-    }, 1500);
+  if (activePhase === "sdtm" && !reviewedHumanFile) {
+    throw new Error("Please upload the reviewed human issue file before running SDTM.");
   }
+
+  setBusy(true);
+  setJob(null);
+
+  const form = new FormData();
+  form.append("file", file);
+  form.append("domain", selectedDomain === "AUTO" ? detection?.domain ?? "AUTO" : selectedDomain);
+  form.append("phase", activePhase);
+
+  if (activePhase === "sdtm" && reviewedHumanFile) {
+    form.append("reviewed_human_file", reviewedHumanFile);
+  }
+
+  const res = await fetch(`${API_BASE_URL}/api/jobs`, {
+    method: "POST",
+    body: form,
+  });
+
+  if (!res.ok) {
+    setBusy(false);
+    throw new Error("Pipeline job could not be created");
+  }
+
+  const data: { job_id: string } = await res.json();
+
+  await fetchJob(data.job_id);
+
+  pollRef.current = window.setInterval(() => {
+    void fetchJob(data.job_id);
+  }, 1500);
+}
 
   async function copyLogs() {
     try {
