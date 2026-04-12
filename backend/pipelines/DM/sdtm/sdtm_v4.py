@@ -335,8 +335,15 @@ def derive_usubjid(row: dict, sponsor_rules: dict) -> Optional[str]:
 
 def get_row_value(row: pd.Series, *candidates: str) -> Optional[str]:
     for c in candidates:
-        if c in row and row.get(c) not in [None, ""]:
-            return row.get(c)
+        if c not in row:
+            continue
+        val = row.get(c)
+        if pd.isna(val):
+            continue
+        sval = str(val).strip()
+        if sval == "" or sval.upper() in {"NAN", "NONE", "NULL"}:
+            continue
+        return sval
     return None
 
 
