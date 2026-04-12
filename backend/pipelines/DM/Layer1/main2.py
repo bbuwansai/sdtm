@@ -416,6 +416,7 @@ def clean_dm(df):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=str, default=None, help="Optional input CSV path")
+    parser.add_argument("--outdir", type=str, default=None, help="Optional output directory")
     args = parser.parse_args()
 
     script_dir = Path(__file__).resolve().parent
@@ -433,26 +434,31 @@ def main():
         ]
         source_csv = next((p for p in candidates if p.exists()), None)
         if source_csv is None:
-            raise FileNotFoundError(f"No DM source file found in {script_dir}. Tried: {[str(p.name) for p in candidates]}")
+            raise FileNotFoundError(
+                f"No DM source file found in {script_dir}. Tried: {[str(p.name) for p in candidates]}"
+            )
+
+    output_dir = Path(args.outdir) if args.outdir else script_dir
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     df = pd.read_csv(source_csv, dtype=str)
     clean_df, issues_df, human_issues_df, sdtm_issues_df = clean_dm(df)
-    
+
     severity_summary_df = issues_df.groupby("severity").size().reset_index(name="issue_count") if not issues_df.empty else pd.DataFrame(columns=["severity", "issue_count"])
     category_summary_df = issues_df.groupby(["severity", "category"]).size().reset_index(name="issue_count") if not issues_df.empty else pd.DataFrame(columns=["severity", "category", "issue_count"])
     rule_summary_df = issues_df.groupby(["issue_bucket", "rule_id", "rule_description"]).size().reset_index(name="issue_count").sort_values("issue_count", ascending=False) if not issues_df.empty else pd.DataFrame(columns=["issue_bucket", "rule_id", "rule_description", "issue_count"])
     bucket_summary_df = issues_df.groupby(["issue_bucket", "severity"]).size().reset_index(name="issue_count") if not issues_df.empty else pd.DataFrame(columns=["issue_bucket", "severity", "issue_count"])
 
-    clean_df.to_csv(script_dir / "dm_cleaned_output.csv", index=False)
-    issues_df.to_csv(script_dir / "dm_issue_log.csv", index=False)
-    human_issues_df.to_csv(script_dir / "dm_human_review_issues.csv", index=False)
-    sdtm_issues_df.to_csv(script_dir / "dm_sdtm_standardizable_issues.csv", index=False)
-    severity_summary_df.to_csv(script_dir / "dm_issue_summary_by_severity.csv", index=False)
-    category_summary_df.to_csv(script_dir / "dm_issue_summary_by_category.csv", index=False)
-    rule_summary_df.to_csv(script_dir / "dm_issue_summary_by_rule.csv", index=False)
-    bucket_summary_df.to_csv(script_dir / "dm_issue_summary_by_bucket.csv", index=False)
+    clean_df.to_csv(output_dir / "dm_cleaned_output.csv", index=False)
+    issues_df.to_csv(output_dir / "dm_issue_log.csv", index=False)
+    human_issues_df.to_csv(output_dir / "dm_human_review_issues.csv", index=False)
+    sdtm_issues_df.to_csv(output_dir / "dm_sdtm_standardizable_issues.csv", index=False)
+    severity_summary_df.to_csv(output_dir / "dm_issue_summary_by_severity.csv", index=False)
+    category_summary_df.to_csv(output_dir / "dm_issue_summary_by_category.csv", index=False)
+    rule_summary_df.to_csv(output_dir / "dm_issue_summary_by_rule.csv", index=False)
+    bucket_summary_df.to_csv(output_dir / "dm_issue_summary_by_bucket.csv", index=False)
 
-    print("Generated files in same folder as script/source:")
+    print(f"Generated files in: {output_dir}")
     print("  - dm_cleaned_output.csv")
     print("  - dm_issue_log.csv")
     print("  - dm_human_review_issues.csv")
