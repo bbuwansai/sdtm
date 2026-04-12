@@ -531,3 +531,31 @@ def create_job(
     )
     thread.start()
     return job_id
+
+def save_reviewed_human_file(job_id: str, filename: str, file_bytes: bytes) -> Path:
+    job_dir = JOBS_DIR / job_id
+    if not job_dir.exists():
+        raise RuntimeError("Job not found")
+
+    reviewed_path = job_dir / filename
+    reviewed_path.write_bytes(file_bytes)
+    return reviewed_path
+
+def start_sdtm_phase(job_id: str, reviewed_human_path: Path) -> None:
+    job = store.load(job_id)
+    if not job.domain:
+        raise RuntimeError("Job domain is not available. Run Layer 1 + Spec first.")
+
+    upload_path = JOBS_DIR / job_id / job.filename
+    if not upload_path.exists():
+        raise RuntimeError("Original uploaded file is missing for this job.")
+
+    store.append(job_id, "Reviewed human issue log uploaded. Starting SDTM phase.", step="Upload")
+
+    thread = threading.Thread(
+        target=process_job,
+        args=(job_id, upload_path, job.domain, "sdtm", reviewed_human_path),
+        daemon=True,
+    )
+    thread.start()
+    
