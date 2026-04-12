@@ -159,45 +159,46 @@ export default function PlatformPage() {
     }
   }
 
-  the file. thefile.async function runPipeline(nextPhase?: "layer1_spec" | "sdtm") {
-  if (!file) return;
+  async function runPipeline(nextPhase?: "layer1_spec" | "sdtm") {
+    if (!file) return;
 
-  const activePhase = nextPhase ?? phase;
+    const activePhase = nextPhase ?? phase;
 
-  if (activePhase === "sdtm" && !reviewedHumanFile) {
-    throw new Error("Please upload the reviewed human issue file before running SDTM.");
+    if (activePhase === "sdtm" && !reviewedHumanFile) {
+      throw new Error("Please upload the reviewed human issue file before running SDTM.");
+    }
+
+    setBusy(true);
+    setJob(null);
+    setPhase(activePhase);
+
+    const form = new FormData();
+    form.append("file", file);
+    form.append("domain", selectedDomain === "AUTO" ? detection?.domain ?? "AUTO" : selectedDomain);
+    form.append("phase", activePhase);
+
+    if (activePhase === "sdtm" && reviewedHumanFile) {
+      form.append("reviewed_human_file", reviewedHumanFile);
+    }
+
+    const res = await fetch(`${API_BASE_URL}/api/jobs`, {
+      method: "POST",
+      body: form,
+    });
+
+    if (!res.ok) {
+      setBusy(false);
+      throw new Error("Pipeline job could not be created");
+    }
+
+    const data: { job_id: string } = await res.json();
+
+    await fetchJob(data.job_id);
+
+    pollRef.current = window.setInterval(() => {
+      void fetchJob(data.job_id);
+    }, 1500);
   }
-
-  setBusy(true);
-  setJob(null);
-
-  const form = new FormData();
-  form.append("file", file);
-  form.append("domain", selectedDomain === "AUTO" ? detection?.domain ?? "AUTO" : selectedDomain);
-  form.append("phase", activePhase);
-
-  if (activePhase === "sdtm" && reviewedHumanFile) {
-    form.append("reviewed_human_file", reviewedHumanFile);
-  }
-
-  const res = await fetch(`${API_BASE_URL}/api/jobs`, {
-    method: "POST",
-    body: form,
-  });
-
-  if (!res.ok) {
-    setBusy(false);
-    throw new Error("Pipeline job could not be created");
-  }
-
-  const data: { job_id: string } = await res.json();
-
-  await fetchJob(data.job_id);
-
-  pollRef.current = window.setInterval(() => {
-    void fetchJob(data.job_id);
-  }, 1500);
-}
 
   async function copyLogs() {
     try {
@@ -232,12 +233,12 @@ export default function PlatformPage() {
             <h1 className="mt-6 text-5xl font-semibold leading-[0.95] md:text-7xl">
               Upload raw data.
               <br />
-              <span className="gradient-text">Watch one clean run console.</span>
+              <span className="gradient-text">Run Layer 1, spec, then SDTM.</span>
             </h1>
 
             <p className="mt-6 max-w-2xl text-xl leading-8 text-slate-700">
-              Keep the customer view simple: upload the file, auto-detect the domain, run the pipeline,
-              and see every update in one compact place.
+              Keep the demo flow simple and credible: upload the source file, download the human-review issue log after
+              Layer 1, update it externally, then re-upload it to drive the SDTM step.
             </p>
 
             <div className="mt-8 flex flex-wrap gap-4">
@@ -263,7 +264,7 @@ export default function PlatformPage() {
               </div>
               <div className="mt-4 text-4xl font-semibold leading-tight">Raw → Layer 1</div>
               <p className="mt-3 text-base leading-7 text-slate-600">
-                Show meaningful QC findings without dumping the user into an overwhelming list of cards.
+                Surface the human-review issue log early so the user can download it before the SDTM step.
               </p>
             </div>
             <div className="card-glass p-7">
@@ -272,17 +273,16 @@ export default function PlatformPage() {
               </div>
               <div className="mt-4 text-4xl font-semibold leading-tight">Spec generation</div>
               <p className="mt-3 text-base leading-7 text-slate-600">
-                Build the spec package from raw inputs so the customer sees the transformation logic turn into reusable metadata.
+                Keep spec generation in the same first phase so the mapping package is ready when SDTM starts.
               </p>
             </div>
             <div className="card-glass p-7 sm:col-span-2 lg:col-span-1 xl:col-span-2">
               <div className="flex items-center gap-2 text-sm text-slate-700">
                 <ShieldCheck className="h-4 w-4" /> Final package
               </div>
-              <div className="mt-4 text-4xl font-semibold leading-tight">One run view, full output set</div>
+              <div className="mt-4 text-4xl font-semibold leading-tight">Reviewed human log → SDTM</div>
               <p className="mt-3 max-w-xl text-base leading-7 text-slate-600">
-                Keep the run readable in a single console, then let the downloads speak: issue logs, layer 1 files,
-                spec workbook, and SDTM outputs.
+                The SDTM step should only run once the reviewed human issue log has been uploaded back into the system.
               </p>
             </div>
           </div>
@@ -295,13 +295,15 @@ export default function PlatformPage() {
             <div className="card-glass p-8">
               <div className="flex items-center gap-3">
                 <FileUp className="h-5 w-5 text-purple-600" />
-                <h2 className="text-2xl font-semibold">Upload raw data</h2>
+                <h2 className="text-2xl font-semibold">Upload files</h2>
               </div>
               <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600">
-                Upload the source file. Domain detection runs automatically after file selection, or you can force a specific domain manually.
+                Upload the raw source file first. For the SDTM phase, also upload the reviewed human issue log that was
+                downloaded from the Layer 1 phase.
               </p>
 
               <div className="mt-6 rounded-[2rem] border border-dashed border-slate-300 bg-white/60 p-8">
+                <label className="mb-3 block text-sm font-medium text-slate-700">Raw data file</label>
                 <input
                   type="file"
                   accept=".csv,.xlsx,.xls"
@@ -322,6 +324,27 @@ export default function PlatformPage() {
                   {file ? <span className="font-medium text-slate-800">Selected: {file.name}</span> : null}
                 </div>
               </div>
+
+              <div className="mt-6 rounded-[2rem] border border-dashed border-slate-300 bg-white/60 p-8">
+                <label className="mb-3 block text-sm font-medium text-slate-700">
+                  Reviewed human issue log file
+                </label>
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => {
+                    const nextFile = e.target.files?.[0] ?? null;
+                    setReviewedHumanFile(nextFile);
+                  }}
+                  className="block w-full text-base text-slate-700"
+                />
+                <div className="mt-5 flex flex-wrap gap-3 text-sm text-slate-500">
+                  <span>Optional for Layer 1 + Spec. Required for SDTM.</span>
+                  {reviewedHumanFile ? (
+                    <span className="font-medium text-slate-800">Selected: {reviewedHumanFile.name}</span>
+                  ) : null}
+                </div>
+              </div>
             </div>
 
             <div className="card-glass p-8">
@@ -330,7 +353,7 @@ export default function PlatformPage() {
                 <h2 className="text-2xl font-semibold">Run controls</h2>
               </div>
 
-              <div className="mt-6 grid gap-4 lg:grid-cols-[220px_1fr]">
+              <div className="mt-6">
                 <select
                   value={selectedDomain}
                   onChange={(e) => {
@@ -343,7 +366,7 @@ export default function PlatformPage() {
                       setDetection({ domain: next, matched_columns: [] });
                     }
                   }}
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm outline-none"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm outline-none"
                 >
                   {domainOptions.map((option) => (
                     <option key={option} value={option}>
@@ -351,13 +374,29 @@ export default function PlatformPage() {
                     </option>
                   ))}
                 </select>
+              </div>
 
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <button
                   disabled={!file || busy || (selectedDomain === "AUTO" && !detection) || detecting}
-                  onClick={() => void runPipeline()}
+                  onClick={() => {
+                    setPhase("layer1_spec");
+                    void runPipeline("layer1_spec");
+                  }}
                   className="rounded-2xl bg-gradient-to-r from-purple-500 via-pink-500 to-indigo-500 px-5 py-4 text-sm font-medium text-white shadow-lg disabled:opacity-50"
                 >
-                  {busy ? "Processing…" : detecting ? "Detecting domain…" : "Run transformation"}
+                  {busy && phase === "layer1_spec" ? "Processing…" : detecting ? "Detecting domain…" : "Run Layer 1 + Spec"}
+                </button>
+
+                <button
+                  disabled={!file || !reviewedHumanFile || busy || (selectedDomain === "AUTO" && !detection) || detecting}
+                  onClick={() => {
+                    setPhase("sdtm");
+                    void runPipeline("sdtm");
+                  }}
+                  className="rounded-2xl border border-slate-900/10 bg-white px-5 py-4 text-sm font-medium text-slate-900 shadow-lg disabled:opacity-50"
+                >
+                  {busy && phase === "sdtm" ? "Processing…" : "Run SDTM"}
                 </button>
               </div>
 
@@ -368,7 +407,7 @@ export default function PlatformPage() {
                 </div>
                 <div className="rounded-[1.5rem] bg-slate-50 p-6">
                   <div className="text-sm font-medium text-slate-900">Matched columns</div>
-                  <div className="mt-2 text-sm leading-7 text-slate-600 max-h-32 overflow-auto">
+                  <div className="mt-2 max-h-32 overflow-auto text-sm leading-7 text-slate-600">
                     {detection?.matched_columns?.length
                       ? detection.matched_columns.join(", ")
                       : "Matched-column evidence will appear here automatically after file upload."}
@@ -384,7 +423,8 @@ export default function PlatformPage() {
                 <div>
                   <h2 className="text-2xl font-semibold">Run console</h2>
                   <p className="mt-2 text-base leading-7 text-slate-600">
-                    One compact place for the full run: detection, QC, spec generation, SDTM creation, and errors when they happen.
+                    One compact place for the full run: detection, Layer 1 QC, spec generation, SDTM creation, and any
+                    errors when they happen.
                   </p>
                 </div>
                 <button
@@ -433,7 +473,8 @@ export default function PlatformPage() {
             <div className="card-glass p-8">
               <h2 className="text-2xl font-semibold">Outputs</h2>
               <p className="mt-3 text-base leading-7 text-slate-600">
-                Layer 1 output, spec package, SDTM output package, and issue files appear here after the run.
+                After phase 1, download the human review issue log and spec package here. After phase 2, the SDTM
+                output package will appear here.
               </p>
 
               <div className="mt-6 grid gap-3">
@@ -452,7 +493,8 @@ export default function PlatformPage() {
                   ))
                 ) : (
                   <div className="rounded-[1.5rem] bg-slate-50 p-5 text-sm leading-7 text-slate-600">
-                    Run a file to populate the downloadable outputs.
+                    Run Layer 1 + Spec to generate the human-review file first, then upload the reviewed file and run
+                    SDTM.
                   </div>
                 )}
               </div>
@@ -483,9 +525,10 @@ export default function PlatformPage() {
           <div className="grid items-center gap-8 lg:grid-cols-[1fr_auto]">
             <div>
               <div className="text-sm uppercase tracking-[0.2em] text-slate-400">Sales conversation</div>
-              <h2 className="mt-3 text-4xl font-semibold leading-tight">Need a cleaner customer-facing run on your domain?</h2>
+              <h2 className="mt-3 text-4xl font-semibold leading-tight">Need a cleaner customer-facing workflow?</h2>
               <p className="mt-4 max-w-3xl text-lg leading-8 text-slate-600">
-                Keep the product story tight: upload raw data, watch the console update in one place, and leave with issue logs, spec files, and SDTM outputs.
+                Keep the story tight: upload raw data, review Layer 1 human issues, re-upload the reviewed log, then
+                produce SDTM outputs in a separate controlled step.
               </p>
             </div>
             <a
