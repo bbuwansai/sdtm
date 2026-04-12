@@ -35,11 +35,30 @@ async def detect_domain_api(file: UploadFile = File(...)):
 
 
 @app.post("/api/jobs")
-async def create_job_api(file: UploadFile = File(...), domain: str = Form("AUTO")):
+async def create_job_api(
+    file: UploadFile = File(...),
+    domain: str = Form("AUTO"),
+    phase: str = Form("layer1_spec"),
+    reviewed_human_file: UploadFile | None = File(None),
+):
     raw = await file.read()
     if not raw:
         raise HTTPException(status_code=400, detail="Uploaded file is empty")
-    job_id = create_job(file.filename or "upload.csv", raw, domain)
+
+    reviewed_bytes = None
+    reviewed_name = None
+    if reviewed_human_file is not None:
+        reviewed_bytes = await reviewed_human_file.read()
+        reviewed_name = reviewed_human_file.filename or "reviewed_human_issues.csv"
+
+    job_id = create_job(
+        filename=file.filename or "upload.csv",
+        file_bytes=raw,
+        selected_domain=domain,
+        phase=phase,
+        reviewed_human_filename=reviewed_name,
+        reviewed_human_bytes=reviewed_bytes,
+    )
     return {"job_id": job_id}
 
 
