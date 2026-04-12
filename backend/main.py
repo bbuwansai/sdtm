@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 from app.config import JOBS_DIR
 from app.services.domain_detector import detect_domain
 from app.services.job_store import JobStore
-from app.services.pipeline_runner import create_job
+from app.services.pipeline_runner import create_job, save_reviewed_human_file, start_sdtm_phase
 
 app = FastAPI(title="KlinAI Demo Backend", version="0.1.0")
 store = JobStore()
