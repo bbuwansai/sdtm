@@ -160,43 +160,67 @@ export default function PlatformPage() {
   }
 
   async function runPipeline(nextPhase?: "layer1_spec" | "sdtm") {
-    if (!file) return;
-
     const activePhase = nextPhase ?? phase;
 
-    if (activePhase === "sdtm" && !reviewedHumanFile) {
+    if (activePhase === "layer1_spec") {
+      if (!file) return;
+
+      setBusy(true);
+      setPhase("layer1_spec");
+      setJob(null);
+
+      const form = new FormData();
+      form.append("file", file);
+      form.append("domain", selectedDomain === "AUTO" ? detection?.domain ?? "AUTO" : selectedDomain);
+      form.append("phase", "layer1_spec");
+
+      const res = await fetch(`${API_BASE_URL}/api/jobs`, {
+        method: "POST",
+        body: form,
+      });
+
+      if (!res.ok) {
+        setBusy(false);
+        throw new Error("Layer 1 + Spec job could not be created");
+      }
+
+      const data: { job_id: string } = await res.json();
+      await fetchJob(data.job_id);
+
+      pollRef.current = window.setInterval(() => {
+        void fetchJob(data.job_id);
+      }, 1500);
+      return;
+    }
+
+    const existingJobId = (job as (JobSummary & { job_id?: string }) | null)?.job_id;
+    if (!existingJobId) {
+      throw new Error("Run Layer 1 + Spec first so an existing job workspace is available.");
+    }
+    if (!reviewedHumanFile) {
       throw new Error("Please upload the reviewed human issue file before running SDTM.");
     }
 
     setBusy(true);
-    setJob(null);
-    setPhase(activePhase);
+    setPhase("sdtm");
 
     const form = new FormData();
-    form.append("file", file);
-    form.append("domain", selectedDomain === "AUTO" ? detection?.domain ?? "AUTO" : selectedDomain);
-    form.append("phase", activePhase);
+    form.append("reviewed_human_file", reviewedHumanFile);
 
-    if (activePhase === "sdtm" && reviewedHumanFile) {
-      form.append("reviewed_human_file", reviewedHumanFile);
-    }
-
-    const res = await fetch(`${API_BASE_URL}/api/jobs`, {
+    const res = await fetch(`${API_BASE_URL}/api/jobs/${existingJobId}/run-sdtm`, {
       method: "POST",
       body: form,
     });
 
     if (!res.ok) {
       setBusy(false);
-      throw new Error("Pipeline job could not be created");
+      throw new Error("SDTM job could not be started");
     }
 
-    const data: { job_id: string } = await res.json();
-
-    await fetchJob(data.job_id);
+    await fetchJob(existingJobId);
 
     pollRef.current = window.setInterval(() => {
-      void fetchJob(data.job_id);
+      void fetchJob(existingJobId);
     }, 1500);
   }
 
@@ -209,6 +233,8 @@ export default function PlatformPage() {
       setCopied(false);
     }
   }
+
+  const existingJobId = (job as (JobSummary & { job_id?: string }) | null)?.job_id;
 
   return (
     <main className="min-h-screen bg-background text-slate-900">
@@ -233,12 +259,12 @@ export default function PlatformPage() {
             <h1 className="mt-6 text-5xl font-semibold leading-[0.95] md:text-7xl">
               Upload raw data.
               <br />
-              <span className="gradient-text">Run Layer 1, spec, then SDTM.</span>
+              <span className="gradient-text">Review human issues. Then run SDTM.</span>
             </h1>
 
             <p className="mt-6 max-w-2xl text-xl leading-8 text-slate-700">
-              Keep the demo flow simple and credible: upload the source file, download the human-review issue log after
-              Layer 1, update it externally, then re-upload it to drive the SDTM step.
+              Keep the workflow believable: first run Layer 1 and spec, download the human-review issue log, update it
+              externally, then upload the reviewed file back into the same job for SDTM generation.
             </p>
 
             <div className="mt-8 flex flex-wrap gap-4">
@@ -264,7 +290,7 @@ export default function PlatformPage() {
               </div>
               <div className="mt-4 text-4xl font-semibold leading-tight">Raw → Layer 1</div>
               <p className="mt-3 text-base leading-7 text-slate-600">
-                Surface the human-review issue log early so the user can download it before the SDTM step.
+                Surface the human-review issue log immediately so the user can download it before SDTM.
               </p>
             </div>
             <div className="card-glass p-7">
@@ -273,16 +299,17 @@ export default function PlatformPage() {
               </div>
               <div className="mt-4 text-4xl font-semibold leading-tight">Spec generation</div>
               <p className="mt-3 text-base leading-7 text-slate-600">
-                Keep spec generation in the same first phase so the mapping package is ready when SDTM starts.
+                Keep spec generation in phase 1 so the metadata package is ready when SDTM starts.
               </p>
             </div>
             <div className="card-glass p-7 sm:col-span-2 lg:col-span-1 xl:col-span-2">
               <div className="flex items-center gap-2 text-sm text-slate-700">
                 <ShieldCheck className="h-4 w-4" /> Final package
               </div>
-              <div className="mt-4 text-4xl font-semibold leading-tight">Reviewed human log → SDTM</div>
+              <div className="mt-4 text-4xl font-semibold leading-tight">Same job → SDTM</div>
               <p className="mt-3 max-w-xl text-base leading-7 text-slate-600">
-                The SDTM step should only run once the reviewed human issue log has been uploaded back into the system.
+                The SDTM phase runs against the same existing job workspace after the reviewed human issue log is
+                uploaded back in.
               </p>
             </div>
           </div>
@@ -298,8 +325,8 @@ export default function PlatformPage() {
                 <h2 className="text-2xl font-semibold">Upload files</h2>
               </div>
               <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600">
-                Upload the raw source file first. For the SDTM phase, also upload the reviewed human issue log that was
-                downloaded from the Layer 1 phase.
+                Upload the raw source file first. After phase 1 completes, upload the reviewed human issue log to the
+                same job and run SDTM.
               </p>
 
               <div className="mt-6 rounded-[2rem] border border-dashed border-slate-300 bg-white/60 p-8">
@@ -339,7 +366,7 @@ export default function PlatformPage() {
                   className="block w-full text-base text-slate-700"
                 />
                 <div className="mt-5 flex flex-wrap gap-3 text-sm text-slate-500">
-                  <span>Optional for Layer 1 + Spec. Required for SDTM.</span>
+                  <span>Upload this only after phase 1 completes.</span>
                   {reviewedHumanFile ? (
                     <span className="font-medium text-slate-800">Selected: {reviewedHumanFile.name}</span>
                   ) : null}
@@ -389,7 +416,7 @@ export default function PlatformPage() {
                 </button>
 
                 <button
-                  disabled={!file || !reviewedHumanFile || busy || (selectedDomain === "AUTO" && !detection) || detecting}
+                  disabled={!existingJobId || !reviewedHumanFile || busy}
                   onClick={() => {
                     setPhase("sdtm");
                     void runPipeline("sdtm");
@@ -406,11 +433,9 @@ export default function PlatformPage() {
                   <div className="mt-2 text-2xl font-semibold text-slate-900">{detectedLabel}</div>
                 </div>
                 <div className="rounded-[1.5rem] bg-slate-50 p-6">
-                  <div className="text-sm font-medium text-slate-900">Matched columns</div>
-                  <div className="mt-2 max-h-32 overflow-auto text-sm leading-7 text-slate-600">
-                    {detection?.matched_columns?.length
-                      ? detection.matched_columns.join(", ")
-                      : "Matched-column evidence will appear here automatically after file upload."}
+                  <div className="text-sm font-medium text-slate-900">Active job id</div>
+                  <div className="mt-2 break-all text-sm leading-7 text-slate-600">
+                    {existingJobId ?? "Run Layer 1 + Spec to create a reusable job workspace."}
                   </div>
                 </div>
               </div>
@@ -423,8 +448,8 @@ export default function PlatformPage() {
                 <div>
                   <h2 className="text-2xl font-semibold">Run console</h2>
                   <p className="mt-2 text-base leading-7 text-slate-600">
-                    One compact place for the full run: detection, Layer 1 QC, spec generation, SDTM creation, and any
-                    errors when they happen.
+                    One compact place for the full run: detection, Layer 1 QC, spec generation, then SDTM on the same
+                    job once the reviewed human log is uploaded.
                   </p>
                 </div>
                 <button
@@ -474,7 +499,7 @@ export default function PlatformPage() {
               <h2 className="text-2xl font-semibold">Outputs</h2>
               <p className="mt-3 text-base leading-7 text-slate-600">
                 After phase 1, download the human review issue log and spec package here. After phase 2, the SDTM
-                output package will appear here.
+                output package will appear here for the same job.
               </p>
 
               <div className="mt-6 grid gap-3">
@@ -493,8 +518,8 @@ export default function PlatformPage() {
                   ))
                 ) : (
                   <div className="rounded-[1.5rem] bg-slate-50 p-5 text-sm leading-7 text-slate-600">
-                    Run Layer 1 + Spec to generate the human-review file first, then upload the reviewed file and run
-                    SDTM.
+                    Run Layer 1 + Spec to generate the human-review file first. Then upload the reviewed file and run
+                    SDTM against the same job.
                   </div>
                 )}
               </div>
@@ -528,7 +553,7 @@ export default function PlatformPage() {
               <h2 className="mt-3 text-4xl font-semibold leading-tight">Need a cleaner customer-facing workflow?</h2>
               <p className="mt-4 max-w-3xl text-lg leading-8 text-slate-600">
                 Keep the story tight: upload raw data, review Layer 1 human issues, re-upload the reviewed log, then
-                produce SDTM outputs in a separate controlled step.
+                produce SDTM outputs inside the same job.
               </p>
             </div>
             <a
