@@ -6,7 +6,7 @@ import traceback
 import pandas as pd
 
 BASE = Path(__file__).resolve().parent
-OUTPUT_DIR = BASE / "sdtm_outputs_v4"
+OUTPUT_DIR = BASE / "sdtm_outputs"
 
 CLEAN_SOURCE_CANDIDATES = [
     "dm_cleaned_output.csv",
