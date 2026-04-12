@@ -276,45 +276,45 @@ def execute_sdtm_only(job_id: str, domain: str, upload_path: Path, reviewed_huma
 
     metrics: Dict[str, str] = {"domain": domain, "phase": "sdtm"}
 
-    if domain == "DM":
-    sdtm_dir = domain_dir / "sdtm"
-    pre_sdtm_out = domain_dir / "pre_sdtm_outputs"
+        if domain == "DM":
+        sdtm_dir = domain_dir / "sdtm"
+        pre_sdtm_out = domain_dir / "pre_sdtm_outputs"
 
-    store.append(
-        job_id,
-        "Applying reviewed human corrections and rerunning Layer 1 before SDTM generation.",
-        step="Pre-SDTM",
-    )
+        store.append(
+            job_id,
+            "Applying reviewed human corrections and rerunning Layer 1 before SDTM generation.",
+            step="Pre-SDTM",
+        )
 
-    run_command(
-        [
-            "python",
-            "pre_sdtm.py",
-            "--cleaned", str(domain_dir / "Layer1" / "dm_cleaned_output.csv"),
-            "--human-reviewed", str(reviewed_human_path),
-            "--layer1-cmd", f"python {domain_dir / 'Layer1' / 'main2.py'} --source {{source}} --outdir {{outdir}}",
-            "--outdir", str(pre_sdtm_out),
-            "--refreshed-cleaned", "dm_cleaned_output.csv",
-            "--refreshed-human", "dm_human_review_issues.csv",
-            "--refreshed-sdtm", "dm_sdtm_standardizable_issues.csv",
-        ],
-        domain_dir,
-        job_id,
-        "Pre-SDTM",
-    )
+        run_command(
+            [
+                "python",
+                "pre_sdtm.py",
+                "--cleaned", str(domain_dir / "Layer1" / "dm_cleaned_output.csv"),
+                "--human-reviewed", str(reviewed_human_path),
+                "--layer1-cmd", f"python {domain_dir / 'Layer1' / 'main2.py'} --source {{source}} --outdir {{outdir}}",
+                "--outdir", str(pre_sdtm_out),
+                "--refreshed-cleaned", "dm_cleaned_output.csv",
+                "--refreshed-human", "dm_human_review_issues.csv",
+                "--refreshed-sdtm", "dm_sdtm_standardizable_issues.csv",
+            ],
+            domain_dir,
+            job_id,
+            "Pre-SDTM",
+        )
 
-    shutil.copy2(pre_sdtm_out / "dm_cleaned_output.csv", sdtm_dir / "dm_cleaned_output.csv")
-    shutil.copy2(pre_sdtm_out / "dm_human_review_issues.csv", sdtm_dir / "dm_human_review_issues.csv")
-    shutil.copy2(pre_sdtm_out / "dm_sdtm_standardizable_issues.csv", sdtm_dir / "dm_sdtm_standardizable_issues.csv")
+        shutil.copy2(pre_sdtm_out / "dm_cleaned_output.csv", sdtm_dir / "dm_cleaned_output.csv")
+        shutil.copy2(pre_sdtm_out / "dm_human_review_issues.csv", sdtm_dir / "dm_human_review_issues.csv")
+        shutil.copy2(pre_sdtm_out / "dm_sdtm_standardizable_issues.csv", sdtm_dir / "dm_sdtm_standardizable_issues.csv")
 
-    store.append(
-        job_id,
-        "Preparing SDTM inputs using refreshed cleaned data and refreshed issue logs from the pre-SDTM step.",
-        step="SDTM generation",
-    )
-    run_command(["python", "sdtm_v4.py"], sdtm_dir, job_id, "SDTM generation")
+        store.append(
+            job_id,
+            "Preparing SDTM inputs using refreshed cleaned data and refreshed issue logs from the pre-SDTM step.",
+            step="SDTM generation",
+        )
+        run_command(["python", "sdtm_v4.py"], sdtm_dir, job_id, "SDTM generation")
 
-    sdtm_out = sdtm_dir / "sdtm_outputs"
+        sdtm_out = sdtm_dir / "sdtm_outputs"
 
     elif domain == "LB":
         project_dir = job_dir / "workspace" / "lb_project"
