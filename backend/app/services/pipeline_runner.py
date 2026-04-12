@@ -276,7 +276,7 @@ def execute_sdtm_only(job_id: str, domain: str, upload_path: Path, reviewed_huma
 
     metrics: Dict[str, str] = {"domain": domain, "phase": "sdtm"}
 
-        if domain == "DM":
+    if domain == "DM":
         sdtm_dir = domain_dir / "sdtm"
         pre_sdtm_out = domain_dir / "pre_sdtm_outputs"
 
