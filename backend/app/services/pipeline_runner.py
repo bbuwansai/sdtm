@@ -558,4 +558,3 @@ def start_sdtm_phase(job_id: str, reviewed_human_path: Path) -> None:
         daemon=True,
     )
     thread.start()
-    
