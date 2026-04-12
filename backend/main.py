@@ -61,6 +61,19 @@ async def create_job_api(
     )
     return {"job_id": job_id}
 
+@app.post("/api/jobs/{job_id}/run-sdtm")
+async def run_sdtm_api(
+    job_id: str,
+    reviewed_human_file: UploadFile = File(...),
+):
+    reviewed_bytes = await reviewed_human_file.read()
+    if not reviewed_bytes:
+        raise HTTPException(status_code=400, detail="Reviewed human file is empty")
+
+    reviewed_path = save_reviewed_human_file(job_id, reviewed_human_file.filename or "reviewed_human_issues.csv", reviewed_bytes)
+    start_sdtm_phase(job_id, reviewed_path)
+    return {"job_id": job_id}
+
 
 @app.get("/api/jobs/{job_id}")
 def get_job(job_id: str):
