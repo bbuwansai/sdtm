@@ -396,7 +396,18 @@ def clean_dm(df):
     clean["HAS_SDTM_STANDARDIZABLE_ISSUE"] = ["Y" if SDTM_BUCKET in bucket_map.get(idx + 1, []) else "N" for idx in clean.index]
 
     human_issues_df = issues_df[issues_df["issue_bucket"] == HUMAN_BUCKET].copy() if not issues_df.empty else pd.DataFrame(columns=list(issues_df.columns))
-    sdtm_issues_df = issues_df[issues_df["issue_bucket"] == SDTM_BUCKET].copy() if not issues_df.empty else pd.DataFrame(columns=list(issues_df.columns))
+sdtm_issues_df = issues_df[issues_df["issue_bucket"] == SDTM_BUCKET].copy() if not issues_df.empty else pd.DataFrame(columns=list(issues_df.columns))
+
+# Add reviewer workflow columns to the human-review file
+if human_issues_df.empty:
+    for col in ["review_status", "human_reviewed_value", "review_comment", "reviewed_by", "reviewed_at"]:
+        human_issues_df[col] = pd.Series(dtype="string")
+else:
+    human_issues_df["review_status"] = "PENDING"
+    human_issues_df["human_reviewed_value"] = ""
+    human_issues_df["review_comment"] = ""
+    human_issues_df["reviewed_by"] = ""
+    human_issues_df["reviewed_at"] = ""
 
     return clean, issues_df, human_issues_df, sdtm_issues_df
 
