@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import re
+import argparse
 from pathlib import Path
 
 TEXT_COLS = [
@@ -413,20 +414,30 @@ def clean_dm(df):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--source", type=str, default=None, help="Optional input CSV path")
+    args = parser.parse_args()
+
     script_dir = Path(__file__).resolve().parent
-    candidates = [
-        script_dir / "dm_source_50_rows.csv",
-        script_dir / "dm_raw_crf_style_50_rows.csv",
-        script_dir / "dm_raw_demo_50_rows.csv",
-        script_dir / "dm_raw.csv",
-    ]
-    source_csv = next((p for p in candidates if p.exists()), None)
-    if source_csv is None:
-        raise FileNotFoundError(f"No DM source file found in {script_dir}. Tried: {[str(p.name) for p in candidates]}")
+
+    if args.source:
+        source_csv = Path(args.source)
+        if not source_csv.exists():
+            raise FileNotFoundError(f"Source file not found: {source_csv}")
+    else:
+        candidates = [
+            script_dir / "dm_source_50_rows.csv",
+            script_dir / "dm_raw_crf_style_50_rows.csv",
+            script_dir / "dm_raw_demo_50_rows.csv",
+            script_dir / "dm_raw.csv",
+        ]
+        source_csv = next((p for p in candidates if p.exists()), None)
+        if source_csv is None:
+            raise FileNotFoundError(f"No DM source file found in {script_dir}. Tried: {[str(p.name) for p in candidates]}")
 
     df = pd.read_csv(source_csv, dtype=str)
     clean_df, issues_df, human_issues_df, sdtm_issues_df = clean_dm(df)
-
+    
     severity_summary_df = issues_df.groupby("severity").size().reset_index(name="issue_count") if not issues_df.empty else pd.DataFrame(columns=["severity", "issue_count"])
     category_summary_df = issues_df.groupby(["severity", "category"]).size().reset_index(name="issue_count") if not issues_df.empty else pd.DataFrame(columns=["severity", "category", "issue_count"])
     rule_summary_df = issues_df.groupby(["issue_bucket", "rule_id", "rule_description"]).size().reset_index(name="issue_count").sort_values("issue_count", ascending=False) if not issues_df.empty else pd.DataFrame(columns=["issue_bucket", "rule_id", "rule_description", "issue_count"])
