@@ -379,9 +379,13 @@ def main():
 
     for idx, row in df[df["AE_PRESENT_ROW"]].iterrows():
         for col in cfg["required_when_ae_present"]:
-            if row.get(col) is None:
+            if not present(row.get(col)):
                 rule = "AE007" if col == "AE_TERM" else "AE002"
                 add_issue(rule, idx, row, col, None, f"{col} is required when AE is present.")
+
+    for idx, row in df[df["AE_PRESENT_ROW"]].iterrows():
+        if not present(row.get("AE_TERM")):
+            add_issue("AE007", idx, row, "AE_TERM", None, "AE_TERM is required when AE is present.")
 
     whitespace_cols = ["AE_TERM","AE_REL_STUDY_DRUG_RAW","AE_REL_STUDY_DRUG2_RAW","AE_COMMENT","AE_ACTION_OTHER_TXT"]
     for col in whitespace_cols:
