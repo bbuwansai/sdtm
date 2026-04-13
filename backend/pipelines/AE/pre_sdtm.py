@@ -1,31 +1,15 @@
-
 from __future__ import annotations
 
 import argparse
 import json
 import shlex
 import subprocess
-from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Any, Optional
 
 import pandas as pd
 
 DONE_VALUES = {"DONE", "APPROVED", "COMPLETE", "COMPLETED", "YES", "Y"}
-
-
-@dataclass
-class AppliedChange:
-    row_num: int
-    field: str
-    old_value: Optional[str]
-    new_value: Optional[str]
-    rule_id: Optional[str]
-    rule_description: Optional[str]
-    review_status: Optional[str]
-    review_comment: Optional[str]
-    applied: str
-    reason: str
 
 
 def normalize_missing(value: Any) -> Optional[str]:
@@ -42,185 +26,76 @@ def normalize_missing(value: Any) -> Optional[str]:
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Apply human-reviewed corrections and rerun Layer 1.")
-    p.add_argument("--cleaned", required=True, help="Path to cleaned output CSV from Layer 1")
-    p.add_argument("--human-reviewed", required=True, help="Path to reviewed human issue CSV")
+    p = argparse.ArgumentParser(description="Reintegrate reviewed issue rows and rerun Layer 1 without changing row numbers.")
+    p.add_argument("--clean-rows", required=True, help="Path to rows clean for SDTM from Layer 1")
+    p.add_argument("--human-reviewed-rows", required=True, help="Path to human-reviewed raw issue rows file")
     p.add_argument(
         "--layer1-cmd",
         required=True,
         help=(
-            "Command template to rerun Layer 1. Use {source} for corrected CSV path and {outdir} for output dir. "
+            "Command template to rerun Layer 1. Use {source} for rebuilt raw CSV path and {outdir} for output dir. "
             'Example: "python main2.py --source {source} --outdir {outdir}"'
         ),
     )
     p.add_argument("--outdir", required=True, help="Directory for pre-SDTM outputs")
-    p.add_argument("--review-status-col", default="review_status")
-    p.add_argument("--review-value-col", default="human_reviewed_value")
-    p.add_argument("--review-comment-col", default="review_comment")
-    p.add_argument("--row-col", default="row_num")
-    p.add_argument("--field-col", default="field")
-    p.add_argument("--refreshed-cleaned", default="dm_cleaned_output.csv")
-    p.add_argument("--refreshed-human", default="dm_human_review_issues.csv")
-    p.add_argument("--refreshed-sdtm", default="dm_sdtm_standardizable_issues.csv")
-    p.add_argument("--strict-field-check", choices=["Y", "N"], default="Y")
+    p.add_argument("--review-status-col", default="HUMAN_REVIEW_STATUS")
+    p.add_argument("--review-comment-col", default="HUMAN_REVIEW_COMMENT")
+    p.add_argument("--issue-summary-col", default="ROW_ISSUES")
+    p.add_argument("--refreshed-clean-rows", default="ae_rows_clean_for_sdtm.csv")
+    p.add_argument("--refreshed-issue-rows", default="ae_rows_with_issues_raw.csv")
+    p.add_argument("--refreshed-human-log", default="ae_issue_log_human.csv")
+    p.add_argument("--refreshed-sdtm-log", default="ae_issue_log_sdtm_standardisable.csv")
     return p.parse_args()
 
 
-def validate_inputs(cleaned_path: Path, human_path: Path) -> None:
-    if not cleaned_path.exists():
-        raise FileNotFoundError(f"Cleaned file not found: {cleaned_path}")
-    if not human_path.exists():
-        raise FileNotFoundError(f"Reviewed human file not found: {human_path}")
+def validate_inputs(clean_rows_path: Path, human_rows_path: Path) -> None:
+    if not clean_rows_path.exists():
+        raise FileNotFoundError(f"Clean rows file not found: {clean_rows_path}")
+    if not human_rows_path.exists():
+        raise FileNotFoundError(f"Reviewed issue rows file not found: {human_rows_path}")
 
 
 def load_csv(path: Path) -> pd.DataFrame:
     return pd.read_csv(path, dtype=str)
 
 
-def should_apply(status: Optional[str], reviewed_value: Optional[str]) -> bool:
-    if normalize_missing(status) is None:
-        return False
-    if normalize_missing(reviewed_value) is None:
-        return False
-    return normalize_missing(status).upper() in DONE_VALUES
+def validate_row_number_column(df: pd.DataFrame, df_name: str) -> None:
+    if "L1_SOURCE_ROW_NUMBER" not in df.columns:
+        raise ValueError(f"{df_name} is missing required column: L1_SOURCE_ROW_NUMBER")
+    row_nums = pd.to_numeric(df["L1_SOURCE_ROW_NUMBER"], errors="coerce")
+    if row_nums.isna().any():
+        raise ValueError(f"{df_name} contains non-numeric L1_SOURCE_ROW_NUMBER values")
+    if row_nums.duplicated().any():
+        dups = sorted(row_nums[row_nums.duplicated()].astype(int).unique().tolist())
+        raise ValueError(f"{df_name} contains duplicate L1_SOURCE_ROW_NUMBER values: {dups}")
 
 
-def apply_reviewed_changes(
-    cleaned_df: pd.DataFrame,
-    reviewed_df: pd.DataFrame,
-    row_col: str,
-    field_col: str,
-    status_col: str,
-    value_col: str,
-    comment_col: str,
-    strict_field_check: bool,
-) -> tuple[pd.DataFrame, list[AppliedChange]]:
-    updated = cleaned_df.copy()
-    changes: list[AppliedChange] = []
+def sort_by_row_number(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+    out["_L1_SORT"] = pd.to_numeric(out["L1_SOURCE_ROW_NUMBER"], errors="raise")
+    out = out.sort_values("_L1_SORT").drop(columns=["_L1_SORT"]).reset_index(drop=True)
+    return out
 
-    required_cols = {row_col, field_col, status_col, value_col}
-    missing = [c for c in required_cols if c not in reviewed_df.columns]
-    if missing:
-        raise ValueError(f"Reviewed human file missing required columns: {missing}")
 
-    for _, issue in reviewed_df.iterrows():
-        row_raw = issue.get(row_col)
-        field = normalize_missing(issue.get(field_col))
-        status = normalize_missing(issue.get(status_col))
-        reviewed_value = normalize_missing(issue.get(value_col))
-        review_comment = normalize_missing(issue.get(comment_col)) if comment_col in reviewed_df.columns else None
-        rule_id = normalize_missing(issue.get("rule_id")) if "rule_id" in reviewed_df.columns else None
-        rule_description = normalize_missing(issue.get("rule_description")) if "rule_description" in reviewed_df.columns else None
+def select_done_review_rows(
+    reviewed_rows_df: pd.DataFrame,
+    review_status_col: str,
+    review_comment_col: str,
+    issue_summary_col: str,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    if review_status_col not in reviewed_rows_df.columns:
+        raise ValueError(f"Reviewed rows file missing required column: {review_status_col}")
 
-        try:
-            row_num = int(float(str(row_raw)))
-        except Exception:
-            changes.append(
-                AppliedChange(
-                    row_num=-1,
-                    field=field or "",
-                    old_value=None,
-                    new_value=reviewed_value,
-                    rule_id=rule_id,
-                    rule_description=rule_description,
-                    review_status=status,
-                    review_comment=review_comment,
-                    applied="N",
-                    reason=f"Invalid row number: {row_raw}",
-                )
-            )
-            continue
+    status_norm = reviewed_rows_df[review_status_col].apply(normalize_missing).fillna("").str.upper()
+    done_mask = status_norm.isin(DONE_VALUES)
 
-        if not should_apply(status, reviewed_value):
-            changes.append(
-                AppliedChange(
-                    row_num=row_num,
-                    field=field or "",
-                    old_value=None,
-                    new_value=reviewed_value,
-                    rule_id=rule_id,
-                    rule_description=rule_description,
-                    review_status=status,
-                    review_comment=review_comment,
-                    applied="N",
-                    reason="Skipped because review_status is not DONE/APPROVED or reviewed value is blank",
-                )
-            )
-            continue
+    done_rows = reviewed_rows_df[done_mask].copy()
+    pending_rows = reviewed_rows_df[~done_mask].copy()
 
-        if field is None:
-            changes.append(
-                AppliedChange(
-                    row_num=row_num,
-                    field="",
-                    old_value=None,
-                    new_value=reviewed_value,
-                    rule_id=rule_id,
-                    rule_description=rule_description,
-                    review_status=status,
-                    review_comment=review_comment,
-                    applied="N",
-                    reason="Missing field name",
-                )
-            )
-            continue
+    helper_cols = [c for c in [review_status_col, review_comment_col, issue_summary_col] if c in done_rows.columns]
+    done_rows = done_rows.drop(columns=helper_cols, errors="ignore")
 
-        zero_idx = row_num - 1
-        if zero_idx < 0 or zero_idx >= len(updated):
-            changes.append(
-                AppliedChange(
-                    row_num=row_num,
-                    field=field,
-                    old_value=None,
-                    new_value=reviewed_value,
-                    rule_id=rule_id,
-                    rule_description=rule_description,
-                    review_status=status,
-                    review_comment=review_comment,
-                    applied="N",
-                    reason="Row number outside cleaned dataset range",
-                )
-            )
-            continue
-
-        if field not in updated.columns:
-            if strict_field_check:
-                changes.append(
-                    AppliedChange(
-                        row_num=row_num,
-                        field=field,
-                        old_value=None,
-                        new_value=reviewed_value,
-                        rule_id=rule_id,
-                        rule_description=rule_description,
-                        review_status=status,
-                        review_comment=review_comment,
-                        applied="N",
-                        reason="Target field not present in cleaned dataset",
-                    )
-                )
-                continue
-            updated[field] = pd.NA
-
-        old_value = normalize_missing(updated.at[zero_idx, field])
-        updated.at[zero_idx, field] = reviewed_value
-
-        changes.append(
-            AppliedChange(
-                row_num=row_num,
-                field=field,
-                old_value=old_value,
-                new_value=reviewed_value,
-                rule_id=rule_id,
-                rule_description=rule_description,
-                review_status=status,
-                review_comment=review_comment,
-                applied="Y",
-                reason="Applied reviewed correction",
-            )
-        )
-
-    return updated, changes
+    return done_rows, pending_rows
 
 
 def run_layer1(layer1_cmd_template: str, corrected_source: Path, outdir: Path) -> None:
@@ -248,68 +123,91 @@ def find_required_output(base: Path, filename: str) -> Path:
 def main() -> None:
     args = parse_args()
 
-    cleaned_path = Path(args.cleaned).resolve()
-    human_path = Path(args.human_reviewed).resolve()
+    clean_rows_path = Path(args.clean_rows).resolve()
+    human_rows_path = Path(args.human_reviewed_rows).resolve()
     outdir = Path(args.outdir).resolve()
     outdir.mkdir(parents=True, exist_ok=True)
 
-    validate_inputs(cleaned_path, human_path)
+    validate_inputs(clean_rows_path, human_rows_path)
 
-    cleaned_df = load_csv(cleaned_path)
-    reviewed_df = load_csv(human_path)
+    clean_rows_df = load_csv(clean_rows_path)
+    reviewed_rows_df = load_csv(human_rows_path)
 
-    corrected_df, changes = apply_reviewed_changes(
-        cleaned_df=cleaned_df,
-        reviewed_df=reviewed_df,
-        row_col=args.row_col,
-        field_col=args.field_col,
-        status_col=args.review_status_col,
-        value_col=args.review_value_col,
-        comment_col=args.review_comment_col,
-        strict_field_check=args.strict_field_check == "Y",
+    validate_row_number_column(clean_rows_df, "clean rows file")
+    validate_row_number_column(reviewed_rows_df, "human-reviewed rows file")
+
+    clean_rows_df = sort_by_row_number(clean_rows_df)
+    reviewed_rows_df = sort_by_row_number(reviewed_rows_df)
+
+    done_rows_df, pending_rows_df = select_done_review_rows(
+        reviewed_rows_df=reviewed_rows_df,
+        review_status_col=args.review_status_col,
+        review_comment_col=args.review_comment_col,
+        issue_summary_col=args.issue_summary_col,
     )
 
-    corrected_cleaned_path = outdir / f"{cleaned_path.stem}_human_applied.csv"
-    corrected_df.to_csv(corrected_cleaned_path, index=False)
+    if not done_rows_df.empty:
+        validate_row_number_column(done_rows_df, "DONE-reviewed rows subset")
+        done_rows_df = sort_by_row_number(done_rows_df)
 
-    audit_df = pd.DataFrame([asdict(c) for c in changes])
-    audit_path = outdir / "human_review_apply_audit.csv"
-    audit_df.to_csv(audit_path, index=False)
+    if not pending_rows_df.empty:
+        validate_row_number_column(pending_rows_df, "pending-reviewed rows subset")
+        pending_rows_df = sort_by_row_number(pending_rows_df)
+
+    rebuilt_raw_df = pd.concat([clean_rows_df, done_rows_df], ignore_index=True)
+
+    validate_row_number_column(rebuilt_raw_df, "rebuilt raw dataset before sort")
+    rebuilt_raw_df = sort_by_row_number(rebuilt_raw_df)
+
+    rebuilt_raw_path = outdir / "ae_rebuilt_raw_for_rerun.csv"
+    rebuilt_raw_df.to_csv(rebuilt_raw_path, index=False)
+
+    pending_rows_path = outdir / "ae_pending_human_rows.csv"
+    pending_rows_df.to_csv(pending_rows_path, index=False)
 
     rerun_outdir = outdir / "layer1_rerun_outputs"
     rerun_outdir.mkdir(parents=True, exist_ok=True)
-    run_layer1(args.layer1_cmd, corrected_cleaned_path, rerun_outdir)
+    run_layer1(args.layer1_cmd, rebuilt_raw_path, rerun_outdir)
 
-    refreshed_cleaned = find_required_output(rerun_outdir, args.refreshed_cleaned)
-    refreshed_human = find_required_output(rerun_outdir, args.refreshed_human)
-    refreshed_sdtm = find_required_output(rerun_outdir, args.refreshed_sdtm)
+    refreshed_clean_rows = find_required_output(rerun_outdir, args.refreshed_clean_rows)
+    refreshed_issue_rows = find_required_output(rerun_outdir, args.refreshed_issue_rows)
+    refreshed_human_log = find_required_output(rerun_outdir, args.refreshed_human_log)
+    refreshed_sdtm_log = find_required_output(rerun_outdir, args.refreshed_sdtm_log)
 
-    final_cleaned = outdir / Path(args.refreshed_cleaned).name
-    final_human = outdir / Path(args.refreshed_human).name
-    final_sdtm = outdir / Path(args.refreshed_sdtm).name
+    final_clean_rows = outdir / Path(args.refreshed_clean_rows).name
+    final_issue_rows = outdir / Path(args.refreshed_issue_rows).name
+    final_human_log = outdir / Path(args.refreshed_human_log).name
+    final_sdtm_log = outdir / Path(args.refreshed_sdtm_log).name
 
-    pd.read_csv(refreshed_cleaned, dtype=str).to_csv(final_cleaned, index=False)
-    pd.read_csv(refreshed_human, dtype=str).to_csv(final_human, index=False)
-    pd.read_csv(refreshed_sdtm, dtype=str).to_csv(final_sdtm, index=False)
+    pd.read_csv(refreshed_clean_rows, dtype=str).to_csv(final_clean_rows, index=False)
+    pd.read_csv(refreshed_issue_rows, dtype=str).to_csv(final_issue_rows, index=False)
+    pd.read_csv(refreshed_human_log, dtype=str).to_csv(final_human_log, index=False)
+    pd.read_csv(refreshed_sdtm_log, dtype=str).to_csv(final_sdtm_log, index=False)
 
     manifest = {
-        "corrected_cleaned_source": str(corrected_cleaned_path),
-        "applied_audit": str(audit_path),
+        "input_clean_rows": str(clean_rows_path),
+        "input_human_reviewed_rows": str(human_rows_path),
+        "rebuilt_raw_for_rerun": str(rebuilt_raw_path),
+        "pending_human_rows": str(pending_rows_path),
         "rerun_outdir": str(rerun_outdir),
-        "refreshed_cleaned_output": str(final_cleaned),
-        "refreshed_human_issue_log": str(final_human),
-        "refreshed_sdtm_issue_log": str(final_sdtm),
-        "applied_changes": int((audit_df["applied"] == "Y").sum()) if not audit_df.empty else 0,
-        "skipped_changes": int((audit_df["applied"] != "Y").sum()) if not audit_df.empty else 0,
+        "refreshed_clean_rows": str(final_clean_rows),
+        "refreshed_issue_rows": str(final_issue_rows),
+        "refreshed_human_issue_log": str(final_human_log),
+        "refreshed_sdtm_issue_log": str(final_sdtm_log),
+        "done_rows_used_for_rerun": int(len(done_rows_df)),
+        "pending_rows_kept_aside": int(len(pending_rows_df)),
+        "row_numbers_preserved": "Y",
+        "row_numbers_sorted_ascending_before_rerun": "Y",
     }
     (outdir / "pre_sdtm_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
     print("Pre-SDTM processing complete.")
-    print(f"- Corrected cleaned dataset: {corrected_cleaned_path}")
-    print(f"- Audit log: {audit_path}")
-    print(f"- Refreshed cleaned output: {final_cleaned}")
-    print(f"- Refreshed human issue log: {final_human}")
-    print(f"- Refreshed SDTM-standardizable issue log: {final_sdtm}")
+    print(f"- Rebuilt raw dataset for rerun: {rebuilt_raw_path}")
+    print(f"- Pending human rows kept aside: {pending_rows_path}")
+    print(f"- Refreshed clean rows: {final_clean_rows}")
+    print(f"- Refreshed issue rows: {final_issue_rows}")
+    print(f"- Refreshed human issue log: {final_human_log}")
+    print(f"- Refreshed SDTM-standardizable issue log: {final_sdtm_log}")
 
 
 if __name__ == "__main__":
