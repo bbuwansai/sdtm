@@ -27,7 +27,7 @@ def normalize_missing(value: Any) -> Optional[str]:
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Rebuild rerun input from Layer 1 clean rows + DONE human-corrected issue rows, preserving row numbers."
+        description="Pre-SDTM rebuild: clean rows + DONE human-corrected issue rows -> rerun Layer 1."
     )
     p.add_argument("--clean-rows", required=True, help="Path to ae_rows_clean_for_sdtm.csv from Layer 1")
     p.add_argument("--human-reviewed-rows", required=True, help="Path to reviewed ae_rows_with_issues_raw.csv")
@@ -36,7 +36,7 @@ def parse_args() -> argparse.Namespace:
         required=True,
         help=(
             "Command template to rerun Layer 1. Use {source} for rebuilt raw CSV path and {outdir} for output dir. "
-            'Example: "python ae_layer1_qc_v7_row_review_stable_rows.py --source {source} --outdir {outdir}"'
+            'Example: "python ae_layer1_qc_v8_row_review_hardened.py --source {source} --outdir {outdir}"'
         ),
     )
     p.add_argument("--outdir", required=True, help="Directory for pre-SDTM outputs")
@@ -103,29 +103,28 @@ def select_done_review_rows(
 
 def ensure_same_raw_columns(clean_rows_df: pd.DataFrame, done_rows_df: pd.DataFrame, row_col: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     clean_cols = list(clean_rows_df.columns)
-    done_cols = list(done_rows_df.columns)
 
-    # DONE rows may still contain helper columns if user added extra spreadsheet-like columns.
-    allowed_extra = set(done_cols) - set(clean_cols)
-    if allowed_extra:
-        done_rows_df = done_rows_df[[c for c in done_cols if c in clean_cols]].copy()
+    if done_rows_df.empty:
+        return clean_rows_df, done_rows_df
+
+    extra_cols = [c for c in done_rows_df.columns if c not in clean_cols]
+    if extra_cols:
+        done_rows_df = done_rows_df[[c for c in done_rows_df.columns if c in clean_cols]].copy()
 
     missing_in_done = [c for c in clean_cols if c not in done_rows_df.columns]
     if missing_in_done:
         raise ValueError(f"Reviewed DONE rows are missing raw columns required for rebuild: {missing_in_done}")
 
-    # Reorder to exactly match clean rows.
     done_rows_df = done_rows_df[clean_cols].copy()
 
-    # Ensure clean rows also ordered properly and both preserve row number column.
     if row_col not in clean_rows_df.columns or row_col not in done_rows_df.columns:
         raise ValueError(f"Both clean rows and DONE rows must contain {row_col}")
 
     return clean_rows_df, done_rows_df
 
 
-def run_layer1(layer1_cmd_template: str, corrected_source: Path, outdir: Path) -> None:
-    cmd = layer1_cmd_template.format(source=str(corrected_source), outdir=str(outdir))
+def run_layer1(layer1_cmd_template: str, rebuilt_source: Path, outdir: Path) -> None:
+    cmd = layer1_cmd_template.format(source=str(rebuilt_source), outdir=str(outdir))
     result = subprocess.run(shlex.split(cmd), capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(
@@ -193,7 +192,6 @@ def main() -> None:
             f"This means issue rows were not fully removed from the clean file: {overlap_clean_done}"
         )
 
-    expected_total_rows = len(clean_row_nums | done_row_nums | pending_row_nums)
     rebuilt_raw_df = pd.concat([clean_rows_df, done_rows_df], ignore_index=True)
     validate_row_number_column(rebuilt_raw_df, args.row_col, "rebuilt raw dataset before sort")
     rebuilt_raw_df = sort_by_row_number(rebuilt_raw_df, args.row_col)
@@ -208,13 +206,12 @@ def main() -> None:
     pending_rows_path = outdir / "ae_pending_human_rows.csv"
     pending_rows_df.to_csv(pending_rows_path, index=False)
 
-    # Useful diagnostics before rerun
     diagnostics = {
         "clean_rows_count": int(len(clean_rows_df)),
         "done_reviewed_rows_count": int(len(done_rows_df)),
         "pending_reviewed_rows_count": int(len(pending_rows_df)),
         "rebuilt_rows_count": int(len(rebuilt_raw_df)),
-        "expected_total_distinct_row_numbers_seen_in_inputs": int(expected_total_rows),
+        "expected_total_distinct_row_numbers_seen_in_inputs": int(len(clean_row_nums | done_row_nums | pending_row_nums)),
         "min_row_number_rebuilt": int(min(rebuilt_row_nums)) if rebuilt_row_nums else None,
         "max_row_number_rebuilt": int(max(rebuilt_row_nums)) if rebuilt_row_nums else None,
         "row_numbers_preserved": "Y",
