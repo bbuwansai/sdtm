@@ -26,21 +26,24 @@ def normalize_missing(value: Any) -> Optional[str]:
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Reintegrate reviewed issue rows and rerun Layer 1 without changing row numbers.")
-    p.add_argument("--clean-rows", required=True, help="Path to rows clean for SDTM from Layer 1")
-    p.add_argument("--human-reviewed-rows", required=True, help="Path to human-reviewed raw issue rows file")
+    p = argparse.ArgumentParser(
+        description="Rebuild rerun input from Layer 1 clean rows + DONE human-corrected issue rows, preserving row numbers."
+    )
+    p.add_argument("--clean-rows", required=True, help="Path to ae_rows_clean_for_sdtm.csv from Layer 1")
+    p.add_argument("--human-reviewed-rows", required=True, help="Path to reviewed ae_rows_with_issues_raw.csv")
     p.add_argument(
         "--layer1-cmd",
         required=True,
         help=(
             "Command template to rerun Layer 1. Use {source} for rebuilt raw CSV path and {outdir} for output dir. "
-            'Example: "python main2.py --source {source} --outdir {outdir}"'
+            'Example: "python ae_layer1_qc_v7_row_review_stable_rows.py --source {source} --outdir {outdir}"'
         ),
     )
     p.add_argument("--outdir", required=True, help="Directory for pre-SDTM outputs")
     p.add_argument("--review-status-col", default="HUMAN_REVIEW_STATUS")
     p.add_argument("--review-comment-col", default="HUMAN_REVIEW_COMMENT")
     p.add_argument("--issue-summary-col", default="ROW_ISSUES")
+    p.add_argument("--row-col", default="L1_SOURCE_ROW_NUMBER")
     p.add_argument("--refreshed-clean-rows", default="ae_rows_clean_for_sdtm.csv")
     p.add_argument("--refreshed-issue-rows", default="ae_rows_with_issues_raw.csv")
     p.add_argument("--refreshed-human-log", default="ae_issue_log_human.csv")
@@ -59,21 +62,21 @@ def load_csv(path: Path) -> pd.DataFrame:
     return pd.read_csv(path, dtype=str)
 
 
-def validate_row_number_column(df: pd.DataFrame, df_name: str) -> None:
-    if "L1_SOURCE_ROW_NUMBER" not in df.columns:
-        raise ValueError(f"{df_name} is missing required column: L1_SOURCE_ROW_NUMBER")
-    row_nums = pd.to_numeric(df["L1_SOURCE_ROW_NUMBER"], errors="coerce")
+def validate_row_number_column(df: pd.DataFrame, row_col: str, df_name: str) -> None:
+    if row_col not in df.columns:
+        raise ValueError(f"{df_name} is missing required column: {row_col}")
+    row_nums = pd.to_numeric(df[row_col], errors="coerce")
     if row_nums.isna().any():
-        raise ValueError(f"{df_name} contains non-numeric L1_SOURCE_ROW_NUMBER values")
+        raise ValueError(f"{df_name} contains non-numeric {row_col} values")
     if row_nums.duplicated().any():
         dups = sorted(row_nums[row_nums.duplicated()].astype(int).unique().tolist())
-        raise ValueError(f"{df_name} contains duplicate L1_SOURCE_ROW_NUMBER values: {dups}")
+        raise ValueError(f"{df_name} contains duplicate {row_col} values: {dups}")
 
 
-def sort_by_row_number(df: pd.DataFrame) -> pd.DataFrame:
+def sort_by_row_number(df: pd.DataFrame, row_col: str) -> pd.DataFrame:
     out = df.copy()
-    out["_L1_SORT"] = pd.to_numeric(out["L1_SOURCE_ROW_NUMBER"], errors="raise")
-    out = out.sort_values("_L1_SORT").drop(columns=["_L1_SORT"]).reset_index(drop=True)
+    out["_SORT_ROW_NUM"] = pd.to_numeric(out[row_col], errors="raise")
+    out = out.sort_values("_SORT_ROW_NUM").drop(columns=["_SORT_ROW_NUM"]).reset_index(drop=True)
     return out
 
 
@@ -96,6 +99,29 @@ def select_done_review_rows(
     done_rows = done_rows.drop(columns=helper_cols, errors="ignore")
 
     return done_rows, pending_rows
+
+
+def ensure_same_raw_columns(clean_rows_df: pd.DataFrame, done_rows_df: pd.DataFrame, row_col: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+    clean_cols = list(clean_rows_df.columns)
+    done_cols = list(done_rows_df.columns)
+
+    # DONE rows may still contain helper columns if user added extra spreadsheet-like columns.
+    allowed_extra = set(done_cols) - set(clean_cols)
+    if allowed_extra:
+        done_rows_df = done_rows_df[[c for c in done_cols if c in clean_cols]].copy()
+
+    missing_in_done = [c for c in clean_cols if c not in done_rows_df.columns]
+    if missing_in_done:
+        raise ValueError(f"Reviewed DONE rows are missing raw columns required for rebuild: {missing_in_done}")
+
+    # Reorder to exactly match clean rows.
+    done_rows_df = done_rows_df[clean_cols].copy()
+
+    # Ensure clean rows also ordered properly and both preserve row number column.
+    if row_col not in clean_rows_df.columns or row_col not in done_rows_df.columns:
+        raise ValueError(f"Both clean rows and DONE rows must contain {row_col}")
+
+    return clean_rows_df, done_rows_df
 
 
 def run_layer1(layer1_cmd_template: str, corrected_source: Path, outdir: Path) -> None:
@@ -133,11 +159,11 @@ def main() -> None:
     clean_rows_df = load_csv(clean_rows_path)
     reviewed_rows_df = load_csv(human_rows_path)
 
-    validate_row_number_column(clean_rows_df, "clean rows file")
-    validate_row_number_column(reviewed_rows_df, "human-reviewed rows file")
+    validate_row_number_column(clean_rows_df, args.row_col, "clean rows file")
+    validate_row_number_column(reviewed_rows_df, args.row_col, "human-reviewed rows file")
 
-    clean_rows_df = sort_by_row_number(clean_rows_df)
-    reviewed_rows_df = sort_by_row_number(reviewed_rows_df)
+    clean_rows_df = sort_by_row_number(clean_rows_df, args.row_col)
+    reviewed_rows_df = sort_by_row_number(reviewed_rows_df, args.row_col)
 
     done_rows_df, pending_rows_df = select_done_review_rows(
         reviewed_rows_df=reviewed_rows_df,
@@ -147,23 +173,54 @@ def main() -> None:
     )
 
     if not done_rows_df.empty:
-        validate_row_number_column(done_rows_df, "DONE-reviewed rows subset")
-        done_rows_df = sort_by_row_number(done_rows_df)
+        validate_row_number_column(done_rows_df, args.row_col, "DONE-reviewed rows subset")
+        done_rows_df = sort_by_row_number(done_rows_df, args.row_col)
 
     if not pending_rows_df.empty:
-        validate_row_number_column(pending_rows_df, "pending-reviewed rows subset")
-        pending_rows_df = sort_by_row_number(pending_rows_df)
+        validate_row_number_column(pending_rows_df, args.row_col, "pending-reviewed rows subset")
+        pending_rows_df = sort_by_row_number(pending_rows_df, args.row_col)
 
+    clean_rows_df, done_rows_df = ensure_same_raw_columns(clean_rows_df, done_rows_df, args.row_col)
+
+    clean_row_nums = set(pd.to_numeric(clean_rows_df[args.row_col], errors="raise").astype(int).tolist())
+    done_row_nums = set(pd.to_numeric(done_rows_df[args.row_col], errors="raise").astype(int).tolist()) if not done_rows_df.empty else set()
+    pending_row_nums = set(pd.to_numeric(pending_rows_df[args.row_col], errors="raise").astype(int).tolist()) if not pending_rows_df.empty else set()
+
+    overlap_clean_done = sorted(clean_row_nums & done_row_nums)
+    if overlap_clean_done:
+        raise ValueError(
+            f"Clean rows file and DONE-reviewed rows overlap on {args.row_col}. "
+            f"This means issue rows were not fully removed from the clean file: {overlap_clean_done}"
+        )
+
+    expected_total_rows = len(clean_row_nums | done_row_nums | pending_row_nums)
     rebuilt_raw_df = pd.concat([clean_rows_df, done_rows_df], ignore_index=True)
+    validate_row_number_column(rebuilt_raw_df, args.row_col, "rebuilt raw dataset before sort")
+    rebuilt_raw_df = sort_by_row_number(rebuilt_raw_df, args.row_col)
 
-    validate_row_number_column(rebuilt_raw_df, "rebuilt raw dataset before sort")
-    rebuilt_raw_df = sort_by_row_number(rebuilt_raw_df)
+    rebuilt_row_nums = pd.to_numeric(rebuilt_raw_df[args.row_col], errors="raise").astype(int).tolist()
+    if rebuilt_row_nums != sorted(rebuilt_row_nums):
+        raise ValueError("Rebuilt raw dataset row numbers are not in ascending order")
 
     rebuilt_raw_path = outdir / "ae_rebuilt_raw_for_rerun.csv"
     rebuilt_raw_df.to_csv(rebuilt_raw_path, index=False)
 
     pending_rows_path = outdir / "ae_pending_human_rows.csv"
     pending_rows_df.to_csv(pending_rows_path, index=False)
+
+    # Useful diagnostics before rerun
+    diagnostics = {
+        "clean_rows_count": int(len(clean_rows_df)),
+        "done_reviewed_rows_count": int(len(done_rows_df)),
+        "pending_reviewed_rows_count": int(len(pending_rows_df)),
+        "rebuilt_rows_count": int(len(rebuilt_raw_df)),
+        "expected_total_distinct_row_numbers_seen_in_inputs": int(expected_total_rows),
+        "min_row_number_rebuilt": int(min(rebuilt_row_nums)) if rebuilt_row_nums else None,
+        "max_row_number_rebuilt": int(max(rebuilt_row_nums)) if rebuilt_row_nums else None,
+        "row_numbers_preserved": "Y",
+        "row_numbers_sorted_ascending_before_rerun": "Y",
+    }
+    (outdir / "pre_sdtm_rebuild_diagnostics.json").write_text(json.dumps(diagnostics, indent=2), encoding="utf-8")
 
     rerun_outdir = outdir / "layer1_rerun_outputs"
     rerun_outdir.mkdir(parents=True, exist_ok=True)
@@ -202,6 +259,10 @@ def main() -> None:
     (outdir / "pre_sdtm_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
     print("Pre-SDTM processing complete.")
+    print(f"- Clean rows: {len(clean_rows_df)}")
+    print(f"- DONE reviewed rows: {len(done_rows_df)}")
+    print(f"- Pending reviewed rows: {len(pending_rows_df)}")
+    print(f"- Rebuilt raw rows: {len(rebuilt_raw_df)}")
     print(f"- Rebuilt raw dataset for rerun: {rebuilt_raw_path}")
     print(f"- Pending human rows kept aside: {pending_rows_path}")
     print(f"- Refreshed clean rows: {final_clean_rows}")
