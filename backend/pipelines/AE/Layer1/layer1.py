@@ -309,6 +309,37 @@ def main():
         nums = sorted(int(df.loc[i, "L1_SOURCE_ROW_NUMBER"]) for i in indexes if int(df.loc[i, "L1_SOURCE_ROW_NUMBER"]) != int(df.loc[current_idx, "L1_SOURCE_ROW_NUMBER"]))
         return ", ".join(str(n) for n in nums)
 
+
+    def build_row_issue_summary(issue_df: pd.DataFrame) -> pd.DataFrame:
+        if issue_df.empty:
+            return pd.DataFrame(columns=[
+                "L1_SOURCE_ROW_NUMBER",
+                "ROW_ISSUES",
+                "HUMAN_REVIEW_STATUS",
+                "HUMAN_REVIEW_COMMENT",
+            ])
+
+        grouped = (
+            issue_df.groupby("source_row_number", sort=True)
+            .apply(
+                lambda g: pd.Series({
+                    "ROW_ISSUES": " | ".join(
+                        sorted(
+                            set(
+                                f"{r.rule_id}: {r.variable_name} -> {r.message}"
+                                for r in g.itertuples(index=False)
+                            )
+                        )
+                    ),
+                    "HUMAN_REVIEW_STATUS": "NOT STARTED",
+                    "HUMAN_REVIEW_COMMENT": "",
+                })
+            )
+            .reset_index()
+            .rename(columns={"source_row_number": "L1_SOURCE_ROW_NUMBER"})
+        )
+        return grouped
+
     # Required fields
     for idx, row in df.iterrows():
         for col in cfg["required_fields_always"]:
@@ -594,11 +625,38 @@ def main():
     if "L1_SOURCE_ROW_NUMBER" not in snapshot_df.columns:
         snapshot_df.insert(0, "L1_SOURCE_ROW_NUMBER", range(1, len(snapshot_df) + 1))
 
+    row_issue_summary_df = build_row_issue_summary(issue_df)
+
+    issue_row_nums = set()
+    if not row_issue_summary_df.empty:
+        issue_row_nums = set(row_issue_summary_df["L1_SOURCE_ROW_NUMBER"].astype(int).tolist())
+
+    issue_rows_raw_df = snapshot_df[snapshot_df["L1_SOURCE_ROW_NUMBER"].astype(int).isin(issue_row_nums)].copy()
+    clean_rows_df = snapshot_df[~snapshot_df["L1_SOURCE_ROW_NUMBER"].astype(int).isin(issue_row_nums)].copy()
+
+    issue_rows_raw_df = issue_rows_raw_df.sort_values("L1_SOURCE_ROW_NUMBER").reset_index(drop=True)
+    clean_rows_df = clean_rows_df.sort_values("L1_SOURCE_ROW_NUMBER").reset_index(drop=True)
+
+    if not row_issue_summary_df.empty:
+        issue_rows_raw_df = issue_rows_raw_df.merge(
+            row_issue_summary_df,
+            on="L1_SOURCE_ROW_NUMBER",
+            how="left"
+        )
+        issue_rows_raw_df = issue_rows_raw_df.sort_values("L1_SOURCE_ROW_NUMBER").reset_index(drop=True)
+    else:
+        issue_rows_raw_df["ROW_ISSUES"] = pd.Series(dtype=str)
+        issue_rows_raw_df["HUMAN_REVIEW_STATUS"] = pd.Series(dtype=str)
+        issue_rows_raw_df["HUMAN_REVIEW_COMMENT"] = pd.Series(dtype=str)
+
     issue_df.to_csv(outdir / "ae_issue_log_all.csv", index=False)
     issue_df[issue_df["final_bucket"] == "Human"].to_csv(outdir / "ae_issue_log_human.csv", index=False)
     issue_df[issue_df["final_bucket"] == "SDTM_STANDARDISABLE"].to_csv(outdir / "ae_issue_log_sdtm_standardisable.csv", index=False)
     summary_df.to_csv(outdir / "ae_issue_summary_by_rule.csv", index=False)
     snapshot_df.to_csv(outdir / "ae_source_snapshot.csv", index=False)
+
+    issue_rows_raw_df.to_csv(outdir / "ae_rows_with_issues_raw.csv", index=False)
+    clean_rows_df.to_csv(outdir / "ae_rows_clean_for_sdtm.csv", index=False)
 
     metadata = {
         "script_name": Path(__file__).name,
