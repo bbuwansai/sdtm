@@ -1,7 +1,7 @@
 {
   "input": {
-    "source_csv": "ae_raw_synthetic.csv",
-    "output_dir": "ae_layer1_outputs_v3"
+    "source_csv": "ae_demo_realistic_cleaned.csv",
+    "output_dir": "ae_layer1_outputs_v7"
   },
   "required_fields_always": [
     "ROW_ID",
