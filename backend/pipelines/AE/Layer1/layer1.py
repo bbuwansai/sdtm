@@ -225,6 +225,7 @@ def main():
         "SUB INVESTIGATOR": "SUB-INVESTIGATOR",
         "COORDINATOR": "STUDY COORDINATOR",
         "STUDY COORDINATOR": "STUDY COORDINATOR",
+        "SUBJECT": "SUBJECT",
     }
     entry_status_map = {
         "COMPLETE": "COMPLETE",
