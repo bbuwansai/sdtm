@@ -65,9 +65,10 @@
       "NO"
     ],
     "reporter": [
-      "INVESTIGATOR",
-      "SUB-INVESTIGATOR",
-      "STUDY COORDINATOR"
+  "INVESTIGATOR",
+  "SUB-INVESTIGATOR",
+  "STUDY COORDINATOR",
+  "SUBJECT"
     ],
     "entry_status": [
       "COMPLETE",
