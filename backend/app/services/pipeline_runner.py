@@ -353,6 +353,49 @@ def execute_sdtm_only(job_id: str, domain: str, upload_path: Path, reviewed_huma
         shutil.copy2(reviewed_human_path, project_dir / "ae_human_review_reviewed.csv")
         shutil.copy2(upload_path, project_dir / "ae_raw.csv")
 
+        pre_sdtm_out = domain_dir / "pre_sdtm_outputs"
+
+        store.append(
+            job_id,
+            "Applying reviewed human corrections and rerunning Layer 1 before AE SDTM generation.",
+            step="Pre-SDTM",
+        )
+
+        run_command(
+            [
+                "python",
+                str(domain_dir / "pre_sdtm.py"),
+                "--clean-rows", str(domain_dir / "Layer1" / "ae_layer1_outputs_v6" / "ae_rows_clean_for_sdtm.csv"),
+                "--human-reviewed-rows", str(reviewed_human_path),
+                "--layer1-cmd",
+                f"python {domain_dir / 'Layer1' / 'layer1.py'} --source {{source}} --rules {domain_dir / 'Layer1' / 'ae_layer1_rules_v6.json'} --outdir {{outdir}}",
+                "--outdir", str(pre_sdtm_out),
+                "--refreshed-clean-rows", "ae_rows_clean_for_sdtm.csv",
+                "--refreshed-issue-rows", "ae_rows_with_issues_raw.csv",
+                "--refreshed-human-log", "ae_issue_log_human.csv",
+                "--refreshed-sdtm-log", "ae_issue_log_sdtm_standardisable.csv",
+            ],
+            domain_dir,
+            job_id,
+            "Pre-SDTM",
+        )
+
+        # Copy refreshed outputs into the project folder so SDTM consumes the post-review state.
+        for name in [
+            "ae_rows_clean_for_sdtm.csv",
+            "ae_rows_with_issues_raw.csv",
+            "ae_issue_log_human.csv",
+            "ae_issue_log_sdtm_standardisable.csv",
+        ]:
+            refreshed = pre_sdtm_out / name
+            if refreshed.exists():
+                shutil.copy2(refreshed, project_dir / name)
+
+        # Also keep the rebuilt rerun source for debugging/traceability when present.
+        rebuilt = pre_sdtm_out / "ae_rebuilt_raw_for_rerun.csv"
+        if rebuilt.exists():
+            shutil.copy2(rebuilt, project_dir / rebuilt.name)
+
         run_command(
             [
                 "python",
