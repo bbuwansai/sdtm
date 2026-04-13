@@ -338,6 +338,7 @@ def main():
             .reset_index()
             .rename(columns={"source_row_number": "L1_SOURCE_ROW_NUMBER"})
         )
+        grouped["L1_SOURCE_ROW_NUMBER"] = grouped["L1_SOURCE_ROW_NUMBER"].astype(str)
         return grouped
 
     # Required fields
@@ -628,6 +629,7 @@ def main():
     snapshot_df = raw_df.copy()
     if "L1_SOURCE_ROW_NUMBER" not in snapshot_df.columns:
         snapshot_df.insert(0, "L1_SOURCE_ROW_NUMBER", range(1, len(snapshot_df) + 1))
+    snapshot_df["L1_SOURCE_ROW_NUMBER"] = snapshot_df["L1_SOURCE_ROW_NUMBER"].astype(str)
 
     row_issue_summary_df = build_row_issue_summary(issue_df)
 
@@ -642,6 +644,8 @@ def main():
     clean_rows_df = clean_rows_df.sort_values("L1_SOURCE_ROW_NUMBER").reset_index(drop=True)
 
     if not row_issue_summary_df.empty:
+        issue_rows_raw_df["L1_SOURCE_ROW_NUMBER"] = issue_rows_raw_df["L1_SOURCE_ROW_NUMBER"].astype(str)
+        row_issue_summary_df["L1_SOURCE_ROW_NUMBER"] = row_issue_summary_df["L1_SOURCE_ROW_NUMBER"].astype(str)
         issue_rows_raw_df = issue_rows_raw_df.merge(
             row_issue_summary_df,
             on="L1_SOURCE_ROW_NUMBER",
