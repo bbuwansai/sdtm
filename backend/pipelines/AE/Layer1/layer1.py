@@ -48,7 +48,8 @@ def raw_text(v):
 
 
 def present(v):
-    return v is not None and not pd.isna(v)
+    return v is not None and not pd.isna(v) and str(v).strip() != ""
+
 
 def as_text(v):
     if pd.isna(v):
@@ -152,7 +153,7 @@ def autodetect_source(search_dir: Path, expected_name: str) -> Path:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="AE Layer 1 QC v6 (JSON-driven, auto-detect, de-duplicated, sorted by row)")
+    parser = argparse.ArgumentParser(description="AE Layer 1 QC v7 (JSON-driven, raw-friendly terminology checks, de-duplicated, sorted by row)")
     parser.add_argument("--source", help="Optional AE raw CSV path")
     parser.add_argument("--rules", help="Optional AE rules JSON path")
     parser.add_argument("--outdir", help="Optional output directory override")
@@ -162,7 +163,7 @@ def main():
     base = Path(__file__).resolve().parent
     search_dir = Path(args.search_dir) if args.search_dir else base
 
-    rules_path = Path(args.rules) if args.rules else first_existing(search_dir, ["ae_layer1_rules_v6.json", "ae_layer1_rules_v5.json", "ae_layer1_rules_v4.json", "ae_layer1_rules.json"])
+    rules_path = Path(args.rules) if args.rules else first_existing(search_dir, ["ae_layer1_rules_v7.json", "ae_layer1_rules_v6.json", "ae_layer1_rules_v5.json", "ae_layer1_rules_v4.json", "ae_layer1_rules.json"])
     if not rules_path or not rules_path.exists():
         raise FileNotFoundError(f"Rules JSON not found in {search_dir}.")
     cfg = json.loads(rules_path.read_text(encoding="utf-8"))
@@ -171,7 +172,7 @@ def main():
     if not source.exists():
         raise FileNotFoundError(f"Input CSV not found: {source}")
 
-    outdir = Path(args.outdir) if args.outdir else (search_dir / "ae_layer1_outputs_v6")
+    outdir = Path(args.outdir) if args.outdir else (search_dir / "ae_layer1_outputs_v7")
     outdir.mkdir(parents=True, exist_ok=True)
 
     raw_df = pd.read_csv(source, dtype=str)
@@ -203,6 +204,38 @@ def main():
     yn_cols = ["AEYN_RAW","AE_ONGOING_RAW","AE_SER_RAW","AE_SER_DTH_RAW","AE_SER_LIFE_RAW","AE_SER_HOSP_RAW","AE_SER_DISAB_RAW","AE_SER_CONG_RAW","AE_SER_MIE_RAW","AE_PRESPEC_RAW"]
     for col in yn_cols:
         df[f"CANON__{col}"] = df[col].apply(as_yes_no)
+
+    # Raw-friendly canonicalization for common sponsor CT variants
+    outcome_map = {
+        "RECOVERED": "RECOVERED/RESOLVED",
+        "RESOLVED": "RECOVERED/RESOLVED",
+        "RECOVERED/RESOLVED": "RECOVERED/RESOLVED",
+        "RECOVERING": "RECOVERING/RESOLVING",
+        "RESOLVING": "RECOVERING/RESOLVING",
+        "RECOVERING/RESOLVING": "RECOVERING/RESOLVING",
+        "NOT RECOVERED": "NOT RECOVERED/NOT RESOLVED",
+        "NOT RESOLVED": "NOT RECOVERED/NOT RESOLVED",
+        "NOT RECOVERED/NOT RESOLVED": "NOT RECOVERED/NOT RESOLVED",
+        "FATAL": "FATAL",
+        "UNKNOWN": "UNKNOWN",
+    }
+    reporter_map = {
+        "INVESTIGATOR": "INVESTIGATOR",
+        "SUB-INVESTIGATOR": "SUB-INVESTIGATOR",
+        "SUB INVESTIGATOR": "SUB-INVESTIGATOR",
+        "COORDINATOR": "STUDY COORDINATOR",
+        "STUDY COORDINATOR": "STUDY COORDINATOR",
+    }
+    entry_status_map = {
+        "COMPLETE": "COMPLETE",
+        "UPDATED": "UPDATED",
+        "INITIAL": "COMPLETE",
+        "VERIFIED": "COMPLETE",
+    }
+
+    df["CANON__AE_OUTCOME_RAW"] = df["AE_OUTCOME_RAW"].map(lambda x: outcome_map.get(x, x))
+    df["CANON__AE_REPORTED_BY"] = df["AE_REPORTED_BY"].map(lambda x: reporter_map.get(x, x))
+    df["CANON__ENTRY_STATUS_RAW"] = df["ENTRY_STATUS_RAW"].map(lambda x: entry_status_map.get(x, x))
 
     df["SUBJECT_KEY"] = df[["STUDYID_RAW","SITEID_RAW","SUBJECT_RAW"]].fillna("").agg("|".join, axis=1)
     for col in DATE_COLUMNS:
@@ -271,11 +304,9 @@ def main():
             return False
         return str(raw_value) != "" and str(raw_value) != str(raw_value).strip()
 
-
     def row_numbers_as_text(indexes, current_idx):
         nums = sorted(int(df.loc[i, "L1_SOURCE_ROW_NUMBER"]) for i in indexes if int(df.loc[i, "L1_SOURCE_ROW_NUMBER"]) != int(df.loc[current_idx, "L1_SOURCE_ROW_NUMBER"]))
         return ", ".join(str(n) for n in nums)
-
 
     # Required fields
     for idx, row in df.iterrows():
@@ -406,9 +437,7 @@ def main():
         if not has_rule_on_root(idx, "AE_REPORT_DATE_RAW", ["AE017", "AE020"]) and not has_rule_on_root(idx, "AE_START_DATE_RAW", ["AE017", "AE020"]):
             if len(sd) == 10 and len(rd) == 10 and rd < sd:
                 add_issue("AE023", idx, row, "AE_REPORT_DATE_RAW", clean(row.get("RAW__AE_REPORT_DATE_RAW")))
-        if not has_rule_on_root(idx, "VISITDT_RAW", ["AE017", "AE020"]) and not has_rule_on_root(idx, "AE_START_DATE_RAW", ["AE017", "AE020"]):
-            if len(sd) == 10 and len(vd) == 10 and sd > vd:
-                add_issue("AE024", idx, row, "AE_START_DATE_RAW", clean(row.get("RAW__AE_START_DATE_RAW")))
+        # AE024 intentionally relaxed: do not flag AE start after visit date in raw Layer 1 due to common visit/onset timing ambiguity
 
     for idx, row in df.iterrows():
         og = row.get("CANON__AE_ONGOING_RAW")
@@ -416,21 +445,21 @@ def main():
         if row.get("AE_PRESENT_ROW") and (row.get("AE_ONGOING_RAW") is None or og not in allowed_yn):
             add_issue("AE025", idx, row, "AE_ONGOING_RAW", rawog)
             continue
-        if og == "YES" and row.get("AE_END_DATE_RAW") is not None:
+        if og == "YES" and present(row.get("AE_END_DATE_RAW")):
             add_issue("AE026", idx, row, "AE_END_DATE_RAW", clean(row.get("RAW__AE_END_DATE_RAW")))
-        elif og == "NO" and row.get("AE_END_DATE_RAW") is None:
+        elif og == "NO" and not present(row.get("AE_END_DATE_RAW")):
             add_issue("AE027", idx, row, "AE_END_DATE_RAW", None)
-        if row.get("AE_END_DATE_RAW") is None and row.get("AE_END_TIME_RAW") is not None and not has_rule_on_root(idx, "AE_END_DATE_RAW", ["AE027"]):
+        if not present(row.get("AE_END_DATE_RAW")) and present(row.get("AE_END_TIME_RAW")) and not has_rule_on_root(idx, "AE_END_DATE_RAW", ["AE027"]):
             add_issue("AE028", idx, row, "AE_END_TIME_RAW", clean(row.get("RAW__AE_END_TIME_RAW")))
-        outcome = row.get("AE_OUTCOME_RAW")
-        if og == "YES" and outcome in {"RECOVERED/RESOLVED","FATAL"}:
+        outcome = row.get("CANON__AE_OUTCOME_RAW")
+        if og == "YES" and outcome in {"RECOVERED/RESOLVED", "FATAL"}:
             add_issue("AE029", idx, row, "AE_OUTCOME_RAW", clean(row.get("RAW__AE_OUTCOME_RAW")))
         elif og == "NO" and outcome == "NOT RECOVERED/NOT RESOLVED":
             add_issue("AE029", idx, row, "AE_OUTCOME_RAW", clean(row.get("RAW__AE_OUTCOME_RAW")))
         if outcome == "FATAL" and row.get("CANON__AE_SER_DTH_RAW") != "YES" and not has_rule_on_root(idx, "AE_SER_RAW", ["AE015"]):
             add_issue("AE030", idx, row, "AE_OUTCOME_RAW", clean(row.get("RAW__AE_OUTCOME_RAW")))
 
-        allowed_rel = set(cfg["allowed"]["relationship"])
+    allowed_rel = set(cfg["allowed"]["relationship"])
     for idx, row in df.iterrows():
         rawv = clean(row.get("RAW__AE_REL_STUDY_DRUG_RAW"))
         val = as_text(row.get("AE_REL_STUDY_DRUG_RAW"))
@@ -446,30 +475,34 @@ def main():
         else:
             add_issue("AE033", idx, row, "AE_REL_STUDY_DRUG_RAW", rawv)
 
+    # Canonical/raw-aware terminology checks:
+    # Use canonical values for yes/no, outcome, reporter, and entry status fields so common raw forms are not over-flagged.
     ct_case_checks = {
-        "AE_SER_RAW": cfg["allowed"]["yes_no"],
-        "AE_SER_DTH_RAW": cfg["allowed"]["yes_no"],
-        "AE_SER_LIFE_RAW": cfg["allowed"]["yes_no"],
-        "AE_SER_HOSP_RAW": cfg["allowed"]["yes_no"],
-        "AE_SER_DISAB_RAW": cfg["allowed"]["yes_no"],
-        "AE_SER_CONG_RAW": cfg["allowed"]["yes_no"],
-        "AE_SER_MIE_RAW": cfg["allowed"]["yes_no"],
-        "AE_PRESPEC_RAW": cfg["allowed"]["prespecified"],
-        "AE_REPORTED_BY": cfg["allowed"]["reporter"],
-        "ENTRY_STATUS_RAW": cfg["allowed"]["entry_status"],
-        "AE_OUTCOME_RAW": cfg["allowed"]["outcome"],
+        "AE_SER_RAW": ("CANON__AE_SER_RAW", cfg["allowed"]["yes_no"]),
+        "AE_SER_DTH_RAW": ("CANON__AE_SER_DTH_RAW", cfg["allowed"]["yes_no"]),
+        "AE_SER_LIFE_RAW": ("CANON__AE_SER_LIFE_RAW", cfg["allowed"]["yes_no"]),
+        "AE_SER_HOSP_RAW": ("CANON__AE_SER_HOSP_RAW", cfg["allowed"]["yes_no"]),
+        "AE_SER_DISAB_RAW": ("CANON__AE_SER_DISAB_RAW", cfg["allowed"]["yes_no"]),
+        "AE_SER_CONG_RAW": ("CANON__AE_SER_CONG_RAW", cfg["allowed"]["yes_no"]),
+        "AE_SER_MIE_RAW": ("CANON__AE_SER_MIE_RAW", cfg["allowed"]["yes_no"]),
+        "AE_PRESPEC_RAW": ("CANON__AE_PRESPEC_RAW", cfg["allowed"]["prespecified"]),
+        "AE_REPORTED_BY": ("CANON__AE_REPORTED_BY", cfg["allowed"]["reporter"]),
+        "ENTRY_STATUS_RAW": ("CANON__ENTRY_STATUS_RAW", cfg["allowed"]["entry_status"]),
+        "AE_OUTCOME_RAW": ("CANON__AE_OUTCOME_RAW", cfg["allowed"]["outcome"]),
     }
-    for col, allowed_vals in ct_case_checks.items():
+    for col, (canon_col, allowed_vals) in ct_case_checks.items():
         allowed = set(allowed_vals)
         upper_allowed = {v.upper() for v in allowed_vals}
         for idx, row in df.iterrows():
             rawv = clean(row.get(f"RAW__{col}"))
-            val = row.get(col)
-            if val is None or has_rule_on_root(idx, col, ["AE001", "AE002", "AE007"]):
+            raw_upper = rawv.upper() if isinstance(rawv, str) else rawv
+            val = row.get(canon_col)
+            if rawv is None or has_rule_on_root(idx, col, ["AE001", "AE002", "AE007"]):
                 continue
             if val in allowed:
                 continue
-            if val in upper_allowed:
+            # Only emit AE037 when the raw form differs by case only and is otherwise approved terminology.
+            if raw_upper in upper_allowed and rawv not in allowed:
                 add_issue("AE037", idx, row, col, rawv, f"{col} differs only by case from approved terminology.")
             else:
                 if col == "AE_SER_RAW" and has_rule_on_root(idx, col, ["AE015"]):
@@ -496,8 +529,10 @@ def main():
                 msg = f"AE_SEQ_CRf potentially duplicated with row(s): {other_rows}" if other_rows else "AE_SEQ_CRf potentially duplicated."
                 add_issue("AE035", idx, row, "AE_SEQ_CRf", row.get("AE_SEQ_CRf"), msg)
 
+    # Keep AE036 but make it operationally lighter: only flag when AE is present and visit is not screening
     for idx, row in df[df["RAND_NO"].isna()].iterrows():
-        add_issue("AE036", idx, row, "RAND_NO", row.get("RAND_NO"))
+        if row.get("AE_PRESENT_ROW") and row.get("VISIT_RAW") != "SCREENING":
+            add_issue("AE036", idx, row, "RAND_NO", row.get("RAND_NO"))
 
     for idx, row in df.iterrows():
         if row.get("ENTRY_STATUS_RAW") == "UPDATED" or present(row.get("CHANGE_REASON_RAW")):
@@ -513,7 +548,6 @@ def main():
                     for i, rec in enumerate(issues):
                         if rec['source_row_number'] == hits[0]['source_row_number'] and normalize_focus_column(rec['variable_name']) == root[1] and rec['rule_id'] == child:
                             suppressed.add(i)
-        # same root: keep higher-priority issue over weaker formatting issue when both exist
         if len(hits) > 1:
             best = best_hit_for_root(root[0], root[1])
             best_pri = priority_map.get(best['rule_id'], 999) if best else 999
