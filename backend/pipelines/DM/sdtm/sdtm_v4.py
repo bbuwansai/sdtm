@@ -523,14 +523,19 @@ def build_dm_row(
     else:
         out["AGE"] = collected_age
 
-    can_fix_ageu = should_apply_sdtm_fix(rownum, "AGEU", sdtm_fixable_df, sdtm_fixable_rows)
-    if can_fix_ageu:
-        new_ageu = standardize_ageu(get_row_value(src_row, "AGEU", "AGE_UNITS"), out["AGE"] is not None, sponsor_rules, ct_lut)
-        if new_ageu != get_row_value(src_row, "AGEU", "AGE_UNITS") and new_ageu is not None:
-            auto_actions.append("Standardized or defaulted AGEU")
-        out["AGEU"] = new_ageu
-    else:
-        out["AGEU"] = get_row_value(src_row, "AGEU", "AGE_UNITS")
+    raw_ageu = get_row_value(src_row, "AGEU", "AGE_UNITS")
+
+    # AGEU is deterministically standardizable in SDTM for this demo:
+    # when AGE is present and AGEU is blank, default to YEARS.
+    new_ageu = standardize_ageu(raw_ageu, out["AGE"] is not None, sponsor_rules, ct_lut)
+
+    if out["AGE"] is not None and new_ageu is None:
+        new_ageu = "YEARS"
+
+    if new_ageu != raw_ageu and new_ageu is not None:
+        auto_actions.append("Standardized or defaulted AGEU")
+
+    out["AGEU"] = new_ageu
 
     out["SEX"] = get_row_value(src_row, "SEX", "SEX_AT_BIRTH")
     out["RACE"] = apply_ct("RACE", get_row_value(src_row, "RACE", "RACE_CAT"), ct_lut) if get_row_value(src_row, "RACE", "RACE_CAT") is not None else None
