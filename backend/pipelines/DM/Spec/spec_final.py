@@ -220,25 +220,28 @@ def fallback_rows() -> Dict[str, Any]:
 
 def call_openai_for_spec(payload: Dict[str, Any]) -> Tuple[Dict[str, Any], str]:
     if OpenAI is None:
-        return fallback_rows(), "openai package not available; used fallback"
-    if not os.environ.get("OPENAI_API_KEY"):
-        return fallback_rows(), "OPENAI_API_KEY not set; used fallback"
-    client = OpenAI()
+        raise RuntimeError("openai package not available")
+
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY not set")
+
+    client = OpenAI(api_key=api_key)
     prompt = PROMPT_TEMPLATE.replace("__ALLOWED_DM_VARIABLES__", ", ".join(DM_VARIABLE_ORDER))
-    try:
-        response = client.responses.create(
-            model=MODEL,
-            input=[
-                {"role": "developer", "content": [{"type": "input_text", "text": prompt}]},
-                {"role": "user", "content": [{"type": "input_text", "text": json.dumps(payload, indent=2)}]},
-            ],
-        )
-        text = getattr(response, "output_text", None)
-        if not text:
-            return fallback_rows(), "AI response had no output_text; used fallback"
-        return json.loads(text), "AI draft succeeded"
-    except Exception as e:
-        return fallback_rows(), f"AI call failed: {type(e).__name__}: {e}"
+
+    response = client.responses.create(
+        model=MODEL,
+        input=[
+            {"role": "developer", "content": [{"type": "input_text", "text": prompt}]},
+            {"role": "user", "content": [{"type": "input_text", "text": json.dumps(payload, indent=2)}]},
+        ],
+    )
+
+    text = getattr(response, "output_text", None)
+    if not text:
+        raise RuntimeError("AI response had no output_text")
+
+    return json.loads(text), "AI draft succeeded"
 
 def _fill_placeholder(v: Any, default: str) -> str:
     if v is None:
