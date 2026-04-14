@@ -512,13 +512,24 @@ def main():
     if not source_csv.exists():
         raise FileNotFoundError(f"Source file not found: {source_csv}")
 
-    df = pd.read_csv(source_csv, dtype=str)
-    payload = build_input_payload(profile_source(df))
-    result, status_text = call_openai_for_spec(payload)
-    mapped_df, support_df, issues_df = validate_and_normalize(result)
-    changes_df = compare_with_prior(mapped_df, prior_spec_csv)
-    write_outputs(result, mapped_df, support_df, issues_df, changes_df, output_dir, status_text)
-    print(f"Created outputs in: {output_dir}")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        df = pd.read_csv(source_csv, dtype=str)
+        payload = build_input_payload(profile_source(df))
+
+        result, status_text = call_openai_for_spec(payload)
+
+        mapped_df, support_df, issues_df = validate_and_normalize(result)
+        changes_df = compare_with_prior(mapped_df, prior_spec_csv)
+        write_outputs(result, mapped_df, support_df, issues_df, changes_df, output_dir, status_text)
+
+        print(f"Created outputs in: {output_dir}")
+
+    except Exception as e:
+        error_text = f"AI SPEC GENERATION FAILED: {type(e).__name__}: {e}"
+        (output_dir / "run_status.txt").write_text(error_text, encoding="utf-8")
+        raise
 
 if __name__ == "__main__":
     main()
