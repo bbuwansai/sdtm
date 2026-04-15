@@ -1,3 +1,4 @@
+import argparse
 import json
 import re
 from pathlib import Path
@@ -5,9 +6,26 @@ from typing import Optional
 import pandas as pd
 
 BASE = Path(__file__).resolve().parent
-SOURCE = BASE / "vs_raw_crf_style_demo.csv"
-RULES = BASE / "vs_layer1_rules_v4.json"
-OUTDIR = BASE / "vs_layer1_outputs_v4"
+DEFAULT_SOURCE = BASE / "vs_raw_crf_style_demo.csv"
+DEFAULT_RULES = BASE / "vs_layer1_rules_v4.json"
+DEFAULT_OUTDIR = BASE / "vs_layer1_outputs_v4"
+
+HUMAN_RULE_IDS = {
+    "VS001", "VS002", "VS003", "VS004", "VS005", "VS006", "VS008", "VS011",
+    "VS022", "VS023", "VS024", "VS025", "VS026", "VS027"
+}
+SDTM_RULE_IDS = {
+    "VS007", "VS009", "VS010", "VS012", "VS013", "VS014", "VS015",
+    "VS016", "VS017", "VS018", "VS019", "VS020", "VS021"
+}
+
+
+def classify_bucket(rule_id: str, severity: str) -> str:
+    if rule_id in SDTM_RULE_IDS:
+        return "SDTM_STANDARDISABLE"
+    if rule_id in HUMAN_RULE_IDS:
+        return "Human"
+    return "SDTM_STANDARDISABLE" if severity == "WARNING" else "Human"
 
 def clean(v):
     if pd.isna(v):
@@ -85,9 +103,19 @@ def cm_equiv(raw_num, unit):
     return None
 
 def main():
-    OUTDIR.mkdir(exist_ok=True)
-    rules = json.loads(RULES.read_text(encoding="utf-8"))
-    df = pd.read_csv(SOURCE, dtype=str)
+    parser = argparse.ArgumentParser(description="VS Layer 1 QC v4")
+    parser.add_argument("--source", help="Path to VS raw CSV input")
+    parser.add_argument("--rules", help="Path to rules JSON")
+    parser.add_argument("--outdir", help="Optional output directory override")
+    args = parser.parse_args()
+
+    source = Path(args.source).resolve() if args.source else DEFAULT_SOURCE
+    rules_path = Path(args.rules).resolve() if args.rules else DEFAULT_RULES
+    outdir = Path(args.outdir).resolve() if args.outdir else DEFAULT_OUTDIR
+
+    outdir.mkdir(parents=True, exist_ok=True)
+    rules = json.loads(rules_path.read_text(encoding="utf-8"))
+    df = pd.read_csv(source, dtype=str)
     for c in df.columns:
         df[c] = df[c].apply(clean)
 
@@ -100,17 +128,20 @@ def main():
 
     def add_issue(rule_id, desc, idx=None, severity="ERROR", subject_key=None, visit_name=None, visit_num=None, missing_expected_test=None):
         src_row_number = None if idx is None else int(df.at[idx, "L1_SOURCE_ROW_NUMBER"])
+        bucket = classify_bucket(rule_id, severity)
         issues.append({
             "source_row_number": src_row_number,
             "rule_id": rule_id,
             "severity": severity,
+            "final_bucket": bucket,
             "rule_description": desc,
+            "message": desc,
             "subject_key": subject_key,
             "visit_name": visit_name,
             "visit_num": visit_num,
             "missing_expected_test": missing_expected_test
         })
-        summary[(rule_id, severity, desc)] = summary.get((rule_id, severity, desc), 0) + 1
+        summary[(rule_id, severity, bucket, desc)] = summary.get((rule_id, severity, bucket, desc), 0) + 1
 
     allowed_tests = set(rules["test_name_rules"]["allowed_raw_test_names"])
     allowed_units = rules["unit_rules"]["allowed_source_units_by_test"]
@@ -294,14 +325,22 @@ def main():
         ).reset_index(drop=True)
 
     summary_df = pd.DataFrame([
-        {"rule_id": rid, "severity": sev, "rule_description": desc, "issue_count": count}
-        for (rid, sev, desc), count in summary.items()
-    ]).sort_values(["rule_id", "severity"]).reset_index(drop=True)
+        {"rule_id": rid, "severity": sev, "final_bucket": bucket, "rule_description": desc, "issue_count": count}
+        for (rid, sev, bucket, desc), count in summary.items()
+    ]).sort_values(["rule_id", "severity", "final_bucket"]).reset_index(drop=True)
 
-    df.to_csv(OUTDIR / "vs_cleaned_output_v4.csv", index=False)
-    issue_df.to_csv(OUTDIR / "vs_issue_log_v4.csv", index=False)
-    summary_df.to_csv(OUTDIR / "vs_issue_summary_by_rule_v4.csv", index=False)
-    print(f"Created outputs in: {OUTDIR}")
+    df.to_csv(outdir / "vs_cleaned_output_v4.csv", index=False)
+    df.to_csv(outdir / "vs_cleaned_output.csv", index=False)
+    issue_df.to_csv(outdir / "vs_issue_log_v4.csv", index=False)
+    issue_df.to_csv(outdir / "vs_issue_log_all_v4.csv", index=False)
+    issue_df.to_csv(outdir / "vs_issue_log_all.csv", index=False)
+    issue_df[issue_df["final_bucket"] == "Human"].to_csv(outdir / "vs_issue_log_human_v4.csv", index=False)
+    issue_df[issue_df["final_bucket"] == "Human"].to_csv(outdir / "vs_issue_log_human.csv", index=False)
+    issue_df[issue_df["final_bucket"] == "SDTM_STANDARDISABLE"].to_csv(outdir / "vs_issue_log_sdtm_standardisable_v4.csv", index=False)
+    issue_df[issue_df["final_bucket"] == "SDTM_STANDARDISABLE"].to_csv(outdir / "vs_issue_log_sdtm_standardisable.csv", index=False)
+    summary_df.to_csv(outdir / "vs_issue_summary_by_rule_v4.csv", index=False)
+    summary_df.to_csv(outdir / "vs_issue_summary_by_rule.csv", index=False)
+    print(f"Created outputs in: {outdir}")
 
 if __name__ == "__main__":
     main()
