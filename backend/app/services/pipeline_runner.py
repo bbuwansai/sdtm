@@ -90,52 +90,6 @@ def prepare_domain_inputs(domain_dir: Path, domain: str, upload_path: Path) -> N
         shutil.copy2(upload_path, domain_dir / "Spec" / "vs_raw_crf_style_demo.csv")
         shutil.copy2(upload_path, domain_dir / "sdtm" / store_name)
         shutil.copy2(upload_path, domain_dir / "sdtm" / "vs_raw_crf_style_demo.csv")
-    elif domain == "VS":
-        pre_sdtm_out = domain_dir / "pre_sdtm_outputs"
-
-        store.append(
-            job_id,
-            "Applying reviewed human corrections and rerunning Layer 1 before VS SDTM generation.",
-            step="Pre-SDTM",
-        )
-
-        run_command(
-            [
-                "python",
-                str(domain_dir / "pre_sdtm.py"),
-                "--cleaned", str(domain_dir / "Layer1" / "vs_layer1_outputs_v4" / "vs_cleaned_output_v4.csv"),
-                "--human-reviewed", str(reviewed_human_path),
-                "--layer1-cmd",
-                f"python {domain_dir / 'Layer1' / 'layer1_v4.py'} --source {{source}} --rules {domain_dir / 'Layer1' / 'vs_layer1_rules_v4.json'} --outdir {{outdir}}",
-                "--outdir", str(pre_sdtm_out),
-                "--refreshed-cleaned", "vs_cleaned_output_v4.csv",
-                "--refreshed-human", "vs_issue_log_human_v4.csv",
-                "--refreshed-sdtm", "vs_issue_log_sdtm_standardisable_v4.csv",
-            ],
-            domain_dir,
-            job_id,
-            "Pre-SDTM",
-        )
-
-        refreshed_layer1_dir = domain_dir / "Layer1" / "vs_layer1_outputs_v4"
-        refreshed_layer1_dir.mkdir(parents=True, exist_ok=True)
-        for name in [
-            "vs_cleaned_output_v4.csv",
-            "vs_issue_log_human_v4.csv",
-            "vs_issue_log_sdtm_standardisable_v4.csv",
-        ]:
-            refreshed = pre_sdtm_out / name
-            if refreshed.exists():
-                shutil.copy2(refreshed, refreshed_layer1_dir / name)
-
-        store.append(
-            job_id,
-            "Preparing SDTM inputs using refreshed cleaned data and refreshed issue logs from the pre-SDTM step.",
-            step="SDTM generation",
-        )
-        run_command(["python", "sdtm_v4.py"], domain_dir / "sdtm", job_id, "SDTM generation")
-        sdtm_out = domain_dir / "sdtm" / "vs_sdtm_outputs_v4"
-
     elif domain == "LB":
         shutil.copy2(upload_path, domain_dir / "Layer1" / store_name)
         shutil.copy2(upload_path, domain_dir / "Layer1" / "lb_raw.csv")
@@ -273,14 +227,14 @@ def execute_layer1_and_spec(job_id: str, domain: str, upload_path: Path) -> None
             "clean": domain_dir / "Layer1" / "dm_cleaned_output.csv",
         },
         "VS": {
-            "human": domain_dir / "Layer1" / "vs_layer1_outputs_v4" / "vs_issue_log_human_v4.csv",
+            "human": domain_dir / "Layer1" / "vs_layer1_outputs_v4" / "vs_rows_with_issues_raw_v4.csv",
             "sdtm": domain_dir / "Layer1" / "vs_layer1_outputs_v4" / "vs_issue_log_sdtm_standardisable_v4.csv",
-            "clean": domain_dir / "Layer1" / "vs_layer1_outputs_v4" / "vs_cleaned_output_v4.csv",
+            "clean": domain_dir / "Layer1" / "vs_layer1_outputs_v4" / "vs_rows_clean_for_sdtm_v4.csv",
         },
         "LB": {
-            "human": domain_dir / "Layer1" / "lb_layer1_outputs_v5" / "lb_issue_log_human_v5.csv",
+            "human": domain_dir / "Layer1" / "lb_layer1_outputs_v5" / "lb_rows_with_issues_raw_v5.csv",
             "sdtm": domain_dir / "Layer1" / "lb_layer1_outputs_v5" / "lb_issue_log_sdtm_standardisable_v5.csv",
-            "clean": domain_dir / "Layer1" / "lb_layer1_outputs_v5" / "lb_cleaned_output_v5.csv",
+            "clean": domain_dir / "Layer1" / "lb_layer1_outputs_v5" / "lb_rows_clean_for_sdtm_v5.csv",
         },
         "AE": {
             "human": domain_dir / "Layer1" / "ae_layer1_outputs_v6" / "ae_human_review.csv",
@@ -351,7 +305,7 @@ def execute_sdtm_only(job_id: str, domain: str, upload_path: Path, reviewed_huma
                 "python",
                 "pre_sdtm.py",
                 "--cleaned", str(domain_dir / "Layer1" / "dm_cleaned_output.csv"),
-                "--human-reviewed", str(reviewed_human_path),
+                "--human-reviewed-rows", str(reviewed_human_path),
                 "--layer1-cmd", f"python {domain_dir / 'Layer1' / 'main2.py'} --source {{source}} --outdir {{outdir}}",
                 "--outdir", str(pre_sdtm_out),
                 "--refreshed-cleaned", "dm_cleaned_output.csv",
@@ -376,6 +330,57 @@ def execute_sdtm_only(job_id: str, domain: str, upload_path: Path, reviewed_huma
 
         sdtm_out = sdtm_dir / "sdtm_outputs"
 
+    elif domain == "VS":
+        pre_sdtm_out = domain_dir / "pre_sdtm_outputs"
+
+        store.append(
+            job_id,
+            "Applying reviewed human corrections and rerunning Layer 1 before VS SDTM generation.",
+            step="Pre-SDTM",
+        )
+
+        run_command(
+            [
+                "python",
+                str(domain_dir / "pre_sdtm.py"),
+                "--clean-rows", str(domain_dir / "Layer1" / "vs_layer1_outputs_v4" / "vs_rows_clean_for_sdtm_v4.csv"),
+                "--human-reviewed-rows", str(reviewed_human_path),
+                "--layer1-cmd",
+                f"python {domain_dir / 'Layer1' / 'layer1_v4.py'} --source {{source}} --rules {domain_dir / 'Layer1' / 'vs_layer1_rules_v4.json'} --outdir {{outdir}}",
+                "--outdir", str(pre_sdtm_out),
+                "--refreshed-clean-rows", "vs_rows_clean_for_sdtm_v4.csv",
+                "--refreshed-issue-rows", "vs_rows_with_issues_raw_v4.csv",
+                "--refreshed-human-log", "vs_issue_log_human_v4.csv",
+                "--refreshed-sdtm-log", "vs_issue_log_sdtm_standardisable_v4.csv",
+            ],
+            domain_dir,
+            job_id,
+            "Pre-SDTM",
+        )
+
+        refreshed_layer1_dir = domain_dir / "Layer1" / "vs_layer1_outputs_v4"
+        refreshed_layer1_dir.mkdir(parents=True, exist_ok=True)
+        for name in [
+            "vs_rows_clean_for_sdtm_v4.csv",
+            "vs_rows_with_issues_raw_v4.csv",
+            "vs_issue_log_human_v4.csv",
+            "vs_issue_log_sdtm_standardisable_v4.csv",
+            "vs_cleaned_output_v4.csv",
+            "vs_issue_log_all_v4.csv",
+        ]:
+            refreshed = pre_sdtm_out / name
+            if refreshed.exists():
+                shutil.copy2(refreshed, refreshed_layer1_dir / name)
+
+        store.append(
+            job_id,
+            "Preparing SDTM inputs using refreshed cleaned data and refreshed issue logs from the pre-SDTM step.",
+            step="SDTM generation",
+        )
+        run_command(["python", "sdtm_v4.py"], domain_dir / "sdtm", job_id, "SDTM generation")
+
+        sdtm_out = domain_dir / "sdtm" / "vs_sdtm_outputs_v4"
+
     elif domain == "LB":
         project_dir = job_dir / "workspace" / "lb_project"
         project_dir.mkdir(parents=True, exist_ok=True)
@@ -398,14 +403,15 @@ def execute_sdtm_only(job_id: str, domain: str, upload_path: Path, reviewed_huma
             [
                 "python",
                 str(domain_dir / "pre_sdtm.py"),
-                "--cleaned", str(domain_dir / "Layer1" / "lb_layer1_outputs_v5" / "lb_cleaned_output_v5.csv"),
-                "--human-reviewed", str(reviewed_human_path),
+                "--clean-rows", str(domain_dir / "Layer1" / "lb_layer1_outputs_v5" / "lb_rows_clean_for_sdtm_v5.csv"),
+                "--human-reviewed-rows", str(reviewed_human_path),
                 "--layer1-cmd",
                 f"python {domain_dir / 'Layer1' / 'layer1.py'} --source {{source}} --rules {domain_dir / 'Layer1' / 'lb_layer1_rules_v5_1.json'} --outdir {{outdir}}",
                 "--outdir", str(pre_sdtm_out),
-                "--refreshed-cleaned", "lb_cleaned_output_v5.csv",
-                "--refreshed-human", "lb_issue_log_human_v5.csv",
-                "--refreshed-sdtm", "lb_issue_log_sdtm_standardisable_v5.csv",
+                "--refreshed-clean-rows", "lb_rows_clean_for_sdtm_v5.csv",
+                "--refreshed-issue-rows", "lb_rows_with_issues_raw_v5.csv",
+                "--refreshed-human-log", "lb_issue_log_human_v5.csv",
+                "--refreshed-sdtm-log", "lb_issue_log_sdtm_standardisable_v5.csv",
             ],
             domain_dir,
             job_id,
@@ -413,9 +419,12 @@ def execute_sdtm_only(job_id: str, domain: str, upload_path: Path, reviewed_huma
         )
 
         for name in [
-            "lb_cleaned_output_v5.csv",
+            "lb_rows_clean_for_sdtm_v5.csv",
+            "lb_rows_with_issues_raw_v5.csv",
             "lb_issue_log_human_v5.csv",
             "lb_issue_log_sdtm_standardisable_v5.csv",
+            "lb_cleaned_output_v5.csv",
+            "lb_issue_log_all_v5.csv",
         ]:
             refreshed = pre_sdtm_out / name
             if refreshed.exists():
