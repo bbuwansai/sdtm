@@ -534,10 +534,15 @@ def main():
     summary_df = pd.DataFrame(summary_rows)
 
     df.to_csv(outdir / "lb_cleaned_output_v5.csv", index=False)
+    df.to_csv(outdir / "lb_cleaned_output.csv", index=False)
     issue_df.to_csv(outdir / "lb_issue_log_all_v5.csv", index=False)
+    issue_df.to_csv(outdir / "lb_issue_log_all.csv", index=False)
     issue_df[issue_df["final_bucket"] == "Human"].to_csv(outdir / "lb_issue_log_human_v5.csv", index=False)
+    issue_df[issue_df["final_bucket"] == "Human"].to_csv(outdir / "lb_issue_log_human.csv", index=False)
     issue_df[issue_df["final_bucket"] == "SDTM_STANDARDISABLE"].to_csv(outdir / "lb_issue_log_sdtm_standardisable_v5.csv", index=False)
+    issue_df[issue_df["final_bucket"] == "SDTM_STANDARDISABLE"].to_csv(outdir / "lb_issue_log_sdtm_standardisable.csv", index=False)
     summary_df.to_csv(outdir / "lb_issue_summary_by_rule_v5.csv", index=False)
+    summary_df.to_csv(outdir / "lb_issue_summary_by_rule.csv", index=False)
 
     print(f"Created outputs in: {outdir}")
     print(f"Input file used: {source}")
