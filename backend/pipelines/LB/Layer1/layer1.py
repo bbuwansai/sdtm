@@ -152,6 +152,48 @@ def add_issue(issues, summary, rule_meta, rule_id, row_idx=None, row=None,
         (rule_id, meta["severity"], bucket, meta["description"]), 0
     ) + 1
 
+
+
+def build_row_issue_summary(issue_df: pd.DataFrame) -> pd.DataFrame:
+    if issue_df.empty or "source_row_number" not in issue_df.columns:
+        return pd.DataFrame(columns=["L1_SOURCE_ROW_NUMBER", "ROW_ISSUES", "HUMAN_REVIEW_STATUS", "HUMAN_REVIEW_COMMENT"])
+
+    tmp = issue_df[issue_df["source_row_number"].notna()].copy()
+    if tmp.empty:
+        return pd.DataFrame(columns=["L1_SOURCE_ROW_NUMBER", "ROW_ISSUES", "HUMAN_REVIEW_STATUS", "HUMAN_REVIEW_COMMENT"])
+
+    tmp["L1_SOURCE_ROW_NUMBER"] = pd.to_numeric(tmp["source_row_number"], errors="coerce")
+    tmp = tmp[tmp["L1_SOURCE_ROW_NUMBER"].notna()].copy()
+    if tmp.empty:
+        return pd.DataFrame(columns=["L1_SOURCE_ROW_NUMBER", "ROW_ISSUES", "HUMAN_REVIEW_STATUS", "HUMAN_REVIEW_COMMENT"])
+
+    tmp["L1_SOURCE_ROW_NUMBER"] = tmp["L1_SOURCE_ROW_NUMBER"].astype(int).astype(str)
+
+    def describe_row(group: pd.DataFrame) -> str:
+        parts = []
+        for _, rec in group.sort_values(["rule_id", "message"], na_position="last").iterrows():
+            rule_id = str(rec.get("rule_id") or "").strip()
+            msg = str(rec.get("message") or rec.get("rule_description") or "").strip()
+            bucket = str(rec.get("final_bucket") or "").strip()
+            snippet = " | ".join([x for x in [rule_id, bucket, msg] if x])
+            if snippet:
+                parts.append(snippet)
+        deduped = []
+        seen = set()
+        for part in parts:
+            if part not in seen:
+                seen.add(part)
+                deduped.append(part)
+        return " || ".join(deduped)
+
+    return tmp.groupby("L1_SOURCE_ROW_NUMBER", as_index=False).apply(
+        lambda g: pd.Series({
+            "ROW_ISSUES": describe_row(g),
+            "HUMAN_REVIEW_STATUS": "NOT STARTED",
+            "HUMAN_REVIEW_COMMENT": "",
+        })
+    ).reset_index(drop=True)
+
 def main():
     parser = argparse.ArgumentParser(description="LB Layer 1 QC v5")
     parser.add_argument("--source", help="Path to LB raw CSV input")
@@ -533,6 +575,30 @@ def main():
         })
     summary_df = pd.DataFrame(summary_rows)
 
+    snapshot_df = df.copy()
+    if "L1_SOURCE_ROW_NUMBER" not in snapshot_df.columns:
+        snapshot_df.insert(0, "L1_SOURCE_ROW_NUMBER", range(1, len(snapshot_df) + 1))
+    snapshot_df["L1_SOURCE_ROW_NUMBER"] = snapshot_df["L1_SOURCE_ROW_NUMBER"].astype(str)
+
+    row_issue_summary_df = build_row_issue_summary(issue_df)
+    issue_row_nums = set()
+    if not row_issue_summary_df.empty:
+        issue_row_nums = set(row_issue_summary_df["L1_SOURCE_ROW_NUMBER"].astype(int).tolist())
+
+    issue_rows_raw_df = snapshot_df[snapshot_df["L1_SOURCE_ROW_NUMBER"].astype(int).isin(issue_row_nums)].copy()
+    clean_rows_df = snapshot_df[~snapshot_df["L1_SOURCE_ROW_NUMBER"].astype(int).isin(issue_row_nums)].copy()
+
+    issue_rows_raw_df = issue_rows_raw_df.sort_values("L1_SOURCE_ROW_NUMBER").reset_index(drop=True)
+    clean_rows_df = clean_rows_df.sort_values("L1_SOURCE_ROW_NUMBER").reset_index(drop=True)
+
+    if not row_issue_summary_df.empty:
+        issue_rows_raw_df = issue_rows_raw_df.merge(row_issue_summary_df, on="L1_SOURCE_ROW_NUMBER", how="left")
+        issue_rows_raw_df = issue_rows_raw_df.sort_values("L1_SOURCE_ROW_NUMBER").reset_index(drop=True)
+    else:
+        issue_rows_raw_df["ROW_ISSUES"] = pd.Series(dtype=str)
+        issue_rows_raw_df["HUMAN_REVIEW_STATUS"] = pd.Series(dtype=str)
+        issue_rows_raw_df["HUMAN_REVIEW_COMMENT"] = pd.Series(dtype=str)
+
     df.to_csv(outdir / "lb_cleaned_output_v5.csv", index=False)
     df.to_csv(outdir / "lb_cleaned_output.csv", index=False)
     issue_df.to_csv(outdir / "lb_issue_log_all_v5.csv", index=False)
@@ -543,6 +609,10 @@ def main():
     issue_df[issue_df["final_bucket"] == "SDTM_STANDARDISABLE"].to_csv(outdir / "lb_issue_log_sdtm_standardisable.csv", index=False)
     summary_df.to_csv(outdir / "lb_issue_summary_by_rule_v5.csv", index=False)
     summary_df.to_csv(outdir / "lb_issue_summary_by_rule.csv", index=False)
+    issue_rows_raw_df.to_csv(outdir / "lb_rows_with_issues_raw_v5.csv", index=False)
+    issue_rows_raw_df.to_csv(outdir / "lb_rows_with_issues_raw.csv", index=False)
+    clean_rows_df.to_csv(outdir / "lb_rows_clean_for_sdtm_v5.csv", index=False)
+    clean_rows_df.to_csv(outdir / "lb_rows_clean_for_sdtm.csv", index=False)
 
     print(f"Created outputs in: {outdir}")
     print(f"Input file used: {source}")
