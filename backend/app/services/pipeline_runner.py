@@ -90,6 +90,52 @@ def prepare_domain_inputs(domain_dir: Path, domain: str, upload_path: Path) -> N
         shutil.copy2(upload_path, domain_dir / "Spec" / "vs_raw_crf_style_demo.csv")
         shutil.copy2(upload_path, domain_dir / "sdtm" / store_name)
         shutil.copy2(upload_path, domain_dir / "sdtm" / "vs_raw_crf_style_demo.csv")
+    elif domain == "VS":
+        pre_sdtm_out = domain_dir / "pre_sdtm_outputs"
+
+        store.append(
+            job_id,
+            "Applying reviewed human corrections and rerunning Layer 1 before VS SDTM generation.",
+            step="Pre-SDTM",
+        )
+
+        run_command(
+            [
+                "python",
+                str(domain_dir / "pre_sdtm.py"),
+                "--cleaned", str(domain_dir / "Layer1" / "vs_layer1_outputs_v4" / "vs_cleaned_output_v4.csv"),
+                "--human-reviewed", str(reviewed_human_path),
+                "--layer1-cmd",
+                f"python {domain_dir / 'Layer1' / 'layer1_v4.py'} --source {{source}} --rules {domain_dir / 'Layer1' / 'vs_layer1_rules_v4.json'} --outdir {{outdir}}",
+                "--outdir", str(pre_sdtm_out),
+                "--refreshed-cleaned", "vs_cleaned_output_v4.csv",
+                "--refreshed-human", "vs_issue_log_human_v4.csv",
+                "--refreshed-sdtm", "vs_issue_log_sdtm_standardisable_v4.csv",
+            ],
+            domain_dir,
+            job_id,
+            "Pre-SDTM",
+        )
+
+        refreshed_layer1_dir = domain_dir / "Layer1" / "vs_layer1_outputs_v4"
+        refreshed_layer1_dir.mkdir(parents=True, exist_ok=True)
+        for name in [
+            "vs_cleaned_output_v4.csv",
+            "vs_issue_log_human_v4.csv",
+            "vs_issue_log_sdtm_standardisable_v4.csv",
+        ]:
+            refreshed = pre_sdtm_out / name
+            if refreshed.exists():
+                shutil.copy2(refreshed, refreshed_layer1_dir / name)
+
+        store.append(
+            job_id,
+            "Preparing SDTM inputs using refreshed cleaned data and refreshed issue logs from the pre-SDTM step.",
+            step="SDTM generation",
+        )
+        run_command(["python", "sdtm_v4.py"], domain_dir / "sdtm", job_id, "SDTM generation")
+        sdtm_out = domain_dir / "sdtm" / "vs_sdtm_outputs_v4"
+
     elif domain == "LB":
         shutil.copy2(upload_path, domain_dir / "Layer1" / store_name)
         shutil.copy2(upload_path, domain_dir / "Layer1" / "lb_raw.csv")
@@ -148,32 +194,31 @@ def execute_layer1_and_spec(job_id: str, domain: str, upload_path: Path) -> None
 
     elif domain == "VS":
         store.append(job_id, "Processing QC for the raw VS data.", step="Layer 1 QC")
-        run_command(["python", "layer1_v4.py"], domain_dir / "Layer1", job_id, "Layer 1 QC")
+        run_command(["python", "layer1_v4.py", "--source", str(domain_dir / "Layer1" / "vs_raw_crf_style_demo.csv"), "--rules", str(domain_dir / "Layer1" / "vs_layer1_rules_v4.json"), "--outdir", str(domain_dir / "Layer1" / "vs_layer1_outputs_v4")], domain_dir / "Layer1", job_id, "Layer 1 QC")
 
         metrics.update(
             add_issue_summary(
                 job_id,
-                domain_dir / "Layer1" / "vs_issue_log.csv",
-                human_file=domain_dir / "Layer1" / "vs_human_review.csv",
+                domain_dir / "Layer1" / "vs_layer1_outputs_v4" / "vs_issue_log_all_v4.csv",
+                human_file=domain_dir / "Layer1" / "vs_layer1_outputs_v4" / "vs_issue_log_human_v4.csv",
             )
         )
 
         store.append(job_id, "Generating the spec package directly from the raw VS data.", step="Spec generation")
-        run_command(["python", "spec_v4.py"], domain_dir / "Spec", job_id, "Spec generation")
+        run_command(["python", "spec_v3.py"], domain_dir / "Spec", job_id, "Spec generation")
 
         layer1_out = domain_dir / "Layer1"
-        spec_out = domain_dir / "Spec" / "vs_spec_outputs_v4"
+        spec_out = domain_dir / "Spec" / "vs_spec_outputs_v3"
 
     elif domain == "LB":
         store.append(job_id, "Processing QC for the raw LB data.", step="Layer 1 QC")
-        run_command(["python", "layer1.py"], domain_dir / "Layer1", job_id, "Layer 1 QC")
+        run_command(["python", "layer1.py", "--source", str(domain_dir / "Layer1" / "lb_raw.csv"), "--rules", str(domain_dir / "Layer1" / "lb_layer1_rules_v5_1.json"), "--outdir", str(domain_dir / "Layer1" / "lb_layer1_outputs_v5")], domain_dir / "Layer1", job_id, "Layer 1 QC")
 
         metrics.update(
             add_issue_summary(
                 job_id,
-                domain_dir / "Layer1" / "lb_layer1_outputs_v5" / "lb_issue_log_all.csv",
-                duplicate_file=domain_dir / "Layer1" / "lb_layer1_outputs_v5" / "lb_duplicates.csv",
-                human_file=domain_dir / "Layer1" / "lb_layer1_outputs_v5" / "lb_human_review.csv",
+                domain_dir / "Layer1" / "lb_layer1_outputs_v5" / "lb_issue_log_all_v5.csv",
+                human_file=domain_dir / "Layer1" / "lb_layer1_outputs_v5" / "lb_issue_log_human_v5.csv",
             )
         )
 
@@ -221,18 +266,33 @@ def execute_layer1_and_spec(job_id: str, domain: str, upload_path: Path) -> None
     collect_files([layer1_out], layer1_zip)
     collect_files([spec_out], spec_zip)
 
-    # Copy the DM human issue file directly into artifacts for download
-    if domain == "DM":
-        human_file = domain_dir / "Layer1" / "dm_human_review_issues.csv"
-        sdtm_file = domain_dir / "Layer1" / "dm_sdtm_standardizable_issues.csv"
-        clean_file = domain_dir / "Layer1" / "dm_cleaned_output.csv"
+    review_artifacts_by_domain = {
+        "DM": {
+            "human": domain_dir / "Layer1" / "dm_human_review_issues.csv",
+            "sdtm": domain_dir / "Layer1" / "dm_sdtm_standardizable_issues.csv",
+            "clean": domain_dir / "Layer1" / "dm_cleaned_output.csv",
+        },
+        "VS": {
+            "human": domain_dir / "Layer1" / "vs_layer1_outputs_v4" / "vs_issue_log_human_v4.csv",
+            "sdtm": domain_dir / "Layer1" / "vs_layer1_outputs_v4" / "vs_issue_log_sdtm_standardisable_v4.csv",
+            "clean": domain_dir / "Layer1" / "vs_layer1_outputs_v4" / "vs_cleaned_output_v4.csv",
+        },
+        "LB": {
+            "human": domain_dir / "Layer1" / "lb_layer1_outputs_v5" / "lb_issue_log_human_v5.csv",
+            "sdtm": domain_dir / "Layer1" / "lb_layer1_outputs_v5" / "lb_issue_log_sdtm_standardisable_v5.csv",
+            "clean": domain_dir / "Layer1" / "lb_layer1_outputs_v5" / "lb_cleaned_output_v5.csv",
+        },
+        "AE": {
+            "human": domain_dir / "Layer1" / "ae_layer1_outputs_v6" / "ae_human_review.csv",
+            "sdtm": domain_dir / "Layer1" / "ae_layer1_outputs_v6" / "ae_issue_log_sdtm_standardisable.csv",
+            "clean": domain_dir / "Layer1" / "ae_layer1_outputs_v6" / "ae_rows_clean_for_sdtm.csv",
+        },
+    }
 
-        if human_file.exists():
-            shutil.copy2(human_file, zips_dir / "dm_human_review_issues.csv")
-        if sdtm_file.exists():
-            shutil.copy2(sdtm_file, zips_dir / "dm_sdtm_standardizable_issues.csv")
-        if clean_file.exists():
-            shutil.copy2(clean_file, zips_dir / "dm_cleaned_output.csv")
+    selected_review_artifacts = review_artifacts_by_domain.get(domain, {})
+    for file_path in selected_review_artifacts.values():
+        if file_path.exists():
+            shutil.copy2(file_path, zips_dir / file_path.name)
 
     metrics["phase"] = "layer1_spec"
 
@@ -241,10 +301,10 @@ def execute_layer1_and_spec(job_id: str, domain: str, upload_path: Path) -> None
         "Spec package": f"/api/jobs/{job_id}/download/{spec_zip.name}",
     }
 
-    if domain == "DM":
-        artifacts["Human review issues"] = f"/api/jobs/{job_id}/download/dm_human_review_issues.csv"
-        artifacts["SDTM-standardizable issues"] = f"/api/jobs/{job_id}/download/dm_sdtm_standardizable_issues.csv"
-        artifacts["Layer 1 cleaned output"] = f"/api/jobs/{job_id}/download/dm_cleaned_output.csv"
+    for label, key in [("Human review issues", "human"), ("SDTM-standardizable issues", "sdtm"), ("Layer 1 cleaned output", "clean")]:
+        file_path = selected_review_artifacts.get(key)
+        if file_path and file_path.exists():
+            artifacts[label] = f"/api/jobs/{job_id}/download/{file_path.name}"
 
     store.patch(
         job_id,
@@ -320,13 +380,46 @@ def execute_sdtm_only(job_id: str, domain: str, upload_path: Path, reviewed_huma
         project_dir = job_dir / "workspace" / "lb_project"
         project_dir.mkdir(parents=True, exist_ok=True)
 
-        for file in (domain_dir / "Layer1" / "lb_layer1_outputs_v5").glob("*.csv"):
-            shutil.copy2(file, project_dir / file.name)
         for file in (domain_dir / "Spec" / "lb_spec_outputs_v4").glob("*.csv"):
             shutil.copy2(file, project_dir / file.name)
 
         shutil.copy2(reviewed_human_path, project_dir / "lb_issue_log_human_reviewed.csv")
         shutil.copy2(upload_path, project_dir / "lb_raw.csv")
+
+        pre_sdtm_out = domain_dir / "pre_sdtm_outputs"
+
+        store.append(
+            job_id,
+            "Applying reviewed human corrections and rerunning Layer 1 before LB SDTM generation.",
+            step="Pre-SDTM",
+        )
+
+        run_command(
+            [
+                "python",
+                str(domain_dir / "pre_sdtm.py"),
+                "--cleaned", str(domain_dir / "Layer1" / "lb_layer1_outputs_v5" / "lb_cleaned_output_v5.csv"),
+                "--human-reviewed", str(reviewed_human_path),
+                "--layer1-cmd",
+                f"python {domain_dir / 'Layer1' / 'layer1.py'} --source {{source}} --rules {domain_dir / 'Layer1' / 'lb_layer1_rules_v5_1.json'} --outdir {{outdir}}",
+                "--outdir", str(pre_sdtm_out),
+                "--refreshed-cleaned", "lb_cleaned_output_v5.csv",
+                "--refreshed-human", "lb_issue_log_human_v5.csv",
+                "--refreshed-sdtm", "lb_issue_log_sdtm_standardisable_v5.csv",
+            ],
+            domain_dir,
+            job_id,
+            "Pre-SDTM",
+        )
+
+        for name in [
+            "lb_cleaned_output_v5.csv",
+            "lb_issue_log_human_v5.csv",
+            "lb_issue_log_sdtm_standardisable_v5.csv",
+        ]:
+            refreshed = pre_sdtm_out / name
+            if refreshed.exists():
+                shutil.copy2(refreshed, project_dir / name)
 
         run_command(
             [
@@ -460,7 +553,7 @@ def execute_domain_pipeline(job_id: str, domain: str, upload_path: Path) -> None
         sdtm_out = domain_dir / "sdtm" / "sdtm_outputs_v4"
     elif domain == "VS":
         store.append(job_id, "Processing QC for the raw VS data.", step="Layer 1 QC")
-        run_command(["python", "layer1_v4.py"], domain_dir / "Layer1", job_id, "Layer 1 QC")
+        run_command(["python", "layer1_v4.py", "--source", str(domain_dir / "Layer1" / "vs_raw_crf_style_demo.csv"), "--rules", str(domain_dir / "Layer1" / "vs_layer1_rules_v4.json"), "--outdir", str(domain_dir / "Layer1" / "vs_layer1_outputs_v4")], domain_dir / "Layer1", job_id, "Layer 1 QC")
         metrics.update(add_issue_summary(job_id, domain_dir / "Layer1" / "vs_layer1_outputs_v4" / "vs_issue_log.csv", duplicate_file=domain_dir / "Layer1" / "vs_layer1_outputs_v4" / "vs_duplicates.csv"))
 
         store.append(job_id, "Generating the spec package directly from the raw VS data.", step="Spec generation")
@@ -474,7 +567,7 @@ def execute_domain_pipeline(job_id: str, domain: str, upload_path: Path) -> None
     elif domain == "LB":
         store.append(job_id, "Processing QC for the raw LB data.", step="Layer 1 QC")
         run_command(["python", "layer1_v6.py", "--source", str(domain_dir / "Layer1" / "lb_raw.csv"), "--outdir", str(domain_dir / "Layer1" / "lb_layer1_outputs_v5")], domain_dir / "Layer1", job_id, "Layer 1 QC")
-        metrics.update(add_issue_summary(job_id, domain_dir / "Layer1" / "lb_layer1_outputs_v5" / "lb_issue_log_all.csv", duplicate_file=domain_dir / "Layer1" / "lb_layer1_outputs_v5" / "lb_duplicates.csv", human_file=domain_dir / "Layer1" / "lb_layer1_outputs_v5" / "lb_human_review.csv"))
+        metrics.update(add_issue_summary(job_id, domain_dir / "Layer1" / "lb_layer1_outputs_v5" / "lb_issue_log_all_v5.csv", duplicate_file=domain_dir / "Layer1" / "lb_layer1_outputs_v5" / "lb_duplicates.csv", human_file=domain_dir / "Layer1" / "lb_layer1_outputs_v5" / "lb_human_review.csv"))
 
         store.append(job_id, "Generating the spec package directly from the raw LB data.", step="Spec generation")
         run_command(["python", "spec4.py"], domain_dir / "Spec", job_id, "Spec generation")
