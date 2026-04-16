@@ -370,39 +370,41 @@ export default function AnimatedShaderHero({
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,3,2,0.08)_0%,rgba(5,3,2,0.28)_48%,rgba(5,3,2,0.72)_100%)]" />
 
       <div className="absolute inset-0 z-10 flex flex-col items-center justify-center px-6 text-white">
-        {trustBadge ? (
-          <div className="mb-8 animate-fade-in-down">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#f0c58d]/20 bg-[#1a120b]/35 px-5 py-2.5 text-sm text-[#f7ead8] backdrop-blur-md">
-              {trustBadge.icons?.length ? <span className="text-[#fde1b7]">{trustBadge.icons.join(" ")}</span> : null}
-              <span>{trustBadge.text}</span>
+        <div className="mt-24 flex w-full flex-col items-center">
+          {trustBadge ? (
+            <div className="mb-10 animate-fade-in-down">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[#f0c58d]/20 bg-[#1a120b]/35 px-5 py-2.5 text-sm text-[#f7ead8] backdrop-blur-md">
+                {trustBadge.icons?.length ? <span className="text-[#fde1b7]">{trustBadge.icons.join(" ")}</span> : null}
+                <span>{trustBadge.text}</span>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="mx-auto max-w-5xl text-center">
+            <div className="space-y-2">
+              <h1 className="animate-fade-in-up animation-delay-200 text-5xl font-bold leading-[1.02] tracking-[-0.05em] sm:text-6xl lg:text-8xl">
+                <span className="block bg-gradient-to-r from-orange-300 via-yellow-400 to-amber-300 bg-clip-text text-transparent drop-shadow-[0_2px_16px_rgba(255,185,80,0.16)]">
+                  {headline.line1}
+                </span>
+                <span className="block bg-gradient-to-r from-yellow-300 via-orange-400 to-red-400 bg-clip-text text-transparent drop-shadow-[0_2px_16px_rgba(255,185,80,0.16)]">
+                  {headline.line2}
+                </span>
+              </h1>
+            </div>
+
+            <div className="mt-7 mx-auto max-w-2xl animate-fade-in-up animation-delay-400">
+              <p className="text-center text-lg font-light leading-8 text-orange-100/90 sm:text-[1.28rem] sm:leading-9">
+                {subtitle}
+              </p>
             </div>
           </div>
-        ) : null}
 
-        <div className="mx-auto max-w-5xl text-center">
-          <div className="space-y-2">
-            <h1 className="animate-fade-in-up animation-delay-200 text-5xl font-bold leading-[1.02] tracking-[-0.05em] sm:text-6xl lg:text-8xl">
-              <span className="block bg-gradient-to-r from-orange-300 via-yellow-400 to-amber-300 bg-clip-text text-transparent drop-shadow-[0_2px_16px_rgba(255,185,80,0.16)]">
-                {headline.line1}
-              </span>
-              <span className="block bg-gradient-to-r from-yellow-300 via-orange-400 to-red-400 bg-clip-text text-transparent drop-shadow-[0_2px_16px_rgba(255,185,80,0.16)]">
-                {headline.line2}
-              </span>
-            </h1>
-          </div>
-
-          <div className="mt-7 mx-auto max-w-2xl animate-fade-in-up animation-delay-400">
-            <p className="text-center text-lg font-light leading-8 text-orange-100/90 sm:text-[1.28rem] sm:leading-9">
-              {subtitle}
-            </p>
-          </div>
+          {children ? (
+            <div className="mt-12 w-full max-w-6xl animate-fade-in-up animation-delay-600">
+              {children}
+            </div>
+          ) : null}
         </div>
-
-        {children ? (
-          <div className="mt-12 w-full max-w-6xl animate-fade-in-up animation-delay-600">
-            {children}
-          </div>
-        ) : null}
       </div>
     </section>
   );
