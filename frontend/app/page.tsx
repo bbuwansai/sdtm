@@ -13,10 +13,10 @@ export default function HomePage() {
       <AnimatedShaderHero
         trustBadge={{ text: "Built for biometrics, data management, and CRO teams.", icons: ["✦"] }}
         headline={{
-          line1: "From raw clinical data",
-          line2: "to reviewable CDISC-aligned SDTM.",
+          line1: "AI that turns raw clinical data",
+          line2: "AI that turns raw clinical data",
         }}
-        subtitle="KlinAI helps teams identify data issues early, standardize what can be standardized, generate the mapping specification, and produce traceable SDTM outputs in a workflow designed for review."
+        subtitle="Upload raw clinical data. KlinAI identifies issues, standardizes what can be automated, generates mapping specifications, and delivers fully traceable CDISC-compliant SDTM datasets — ready for review and submission."
       >
         <div className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
           <div className="rounded-[1.9rem] border border-white/10 bg-[#130d09]/50 p-6 backdrop-blur-xl">
