@@ -13,10 +13,10 @@ export default function HomePage() {
       <AnimatedShaderHero
         trustBadge={{ text: "Built for biometrics, data management, and CRO teams.", icons: ["✦"] }}
         headline={{
-          line1: "Raw clinical data to",
-          line2: "traceable CDISC-aligned SDTM.",
+          line1: "From raw clinical data",
+          line2: "to reviewable CDISC-aligned SDTM.",
         }}
-        subtitle="KlinAI runs QC and standardization, separates human-review issues from rule-based transformations, generates AI-assisted mapping specs, and supports traceable SDTM workflows in minutes, not months."
+        subtitle="KlinAI helps teams identify data issues early, standardize what can be standardized, generate the mapping specification, and produce traceable SDTM outputs in a workflow designed for review."
       >
         <div className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
           <div className="rounded-[1.9rem] border border-white/10 bg-[#130d09]/50 p-6 backdrop-blur-xl">
@@ -50,9 +50,9 @@ export default function HomePage() {
 
           <div className="rounded-[1.9rem] border border-[#f0c58d]/18 bg-[linear-gradient(180deg,rgba(201,148,88,0.12),rgba(255,255,255,0.03))] p-6 backdrop-blur-xl">
             <div className="text-sm uppercase tracking-[0.18em] text-[#f4d4a5]">Pilot-ready evaluation</div>
-            <h2 className="mt-4 text-2xl font-semibold text-white">Give buyers a clear first impression.</h2>
+            <h2 className="mt-4 text-2xl font-semibold text-white">See the workflow clearly in one session.</h2>
             <p className="mt-4 text-sm leading-7 text-[#efe6db]">
-              Use a sample file or upload your own structured test dataset. Designed for pilot evaluation with biometrics and data management teams.
+              Upload a sample file or your own structured test dataset to see QC, specification generation, human review, and SDTM output in one place.
             </p>
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <Link
