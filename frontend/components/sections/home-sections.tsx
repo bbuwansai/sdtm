@@ -29,34 +29,35 @@ export function ProductNarrative() {
             <Sparkles className="h-4 w-4" /> What KlinAI does
           </div>
           <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white md:text-4xl">
-            QC, standardization, specification generation, and traceable SDTM in one workflow.
+            A single workflow from raw data review to SDTM delivery.
           </h2>
           <p className="mt-4 max-w-3xl text-base leading-8 text-[#ddd2c4]">
-            KlinAI is designed for biometrics, data management, and CRO teams that need to move from raw clinical data to
-            reviewable, CDISC-aligned SDTM outputs faster. It separates human-review issues from rule-based transformations,
-            generates the mapping blueprint, and keeps each stage visible for review.
+            KlinAI is built for teams that need to move faster from raw clinical data to reviewable SDTM outputs without losing control.
+            It identifies data issues early, separates human-review items from rule-based standardization, generates the mapping
+            specification, and keeps the workflow traceable from input to output.
           </p>
 
           <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
             <SectionCard
-              title="QC first"
-              text="Surface issues early instead of discovering them late in the workflow."
+              title="Identify issues early"
+              text="Find missing fields, inconsistent values, partial dates, duplicates, and other data quality issues before they slow down downstream work."
               icon={FileSearch2}
             />
             <SectionCard
               title="Standardize with rules"
-              text="Apply transformation logic where rules allow while separating true human-review items."
+              text="Apply rule-based transformations where possible while clearly separating items that still require human review."
               icon={BrainCircuit}
             />
             <SectionCard
-              title="Generate mapping spec"
-              text="Create the specification package that explains how source fields map into outputs."
+              title="Generate the spec"
+              text="Create the mapping and transformation specification that explains how raw fields are translated into SDTM outputs."
               icon={FileStack}
             />
             <SectionCard
-              title="Stay traceable"
-              text="Keep the workflow reviewable so teams can see what changed, why, and what still needs attention."
+              title="Keep it reviewable"
+              text="Give teams visibility into what changed, what was standardized, what still needs review, and what is ready for output."
               icon={ShieldCheck}
+            />
             />
           </div>
         </div>
