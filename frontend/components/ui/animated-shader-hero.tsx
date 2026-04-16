@@ -1,101 +1,196 @@
-import Link from "next/link";
-import type { ComponentType } from "react";
-import { ArrowRight, BrainCircuit, CheckCircle2, FileSearch2, FileStack, ShieldCheck, Sparkles, Workflow } from "lucide-react";
+"use client";
 
-function SectionCard({
-  title,
-  text,
-  icon: Icon,
-}: {
-  title: string;
-  text: string;
-  icon: ComponentType<{ className?: string }>;
-}) {
-  return (
-    <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.04] p-6 backdrop-blur-xl">
-      <Icon className="h-5 w-5 text-emerald-300" />
-      <h3 className="mt-4 text-xl font-semibold text-white">{title}</h3>
-      <p className="mt-3 text-sm leading-7 text-slate-300">{text}</p>
-    </div>
-  );
+import React, { useEffect, useRef, type ReactNode } from "react";
+
+interface HeroProps {
+  trustBadge?: {
+    text: string;
+    icons?: string[];
+  };
+  headline: {
+    line1: string;
+    line2: string;
+  };
+  subtitle: string;
+  className?: string;
+  children?: ReactNode;
 }
 
-export function ProductNarrative() {
+const defaultShaderSource = `#version 300 es
+precision highp float;
+out vec4 O;
+uniform vec2 resolution;
+uniform float time;
+#define FC gl_FragCoord.xy
+#define T time
+#define R resolution
+#define MN min(R.x,R.y)
+float rnd(vec2 p) {
+  p=fract(p*vec2(12.9898,78.233));
+  p+=dot(p,p+34.56);
+  return fract(p.x*p.y);
+}
+float noise(in vec2 p) {
+  vec2 i=floor(p), f=fract(p), u=f*f*(3.-2.*f);
+  float a=rnd(i), b=rnd(i+vec2(1,0)), c=rnd(i+vec2(0,1)), d=rnd(i+1.);
+  return mix(mix(a,b,u.x),mix(c,d,u.x),u.y);
+}
+float fbm(vec2 p) {
+  float t=.0, a=1.; mat2 m=mat2(1.,-.5,.2,1.2);
+  for (int i=0; i<5; i++) {
+    t+=a*noise(p);
+    p*=2.*m;
+    a*=.5;
+  }
+  return t;
+}
+float clouds(vec2 p) {
+  float d=1., t=.0;
+  for (float i=.0; i<3.; i++) {
+    float a=d*fbm(i*10.+p.x*.2+.2*(1.+i)*p.y+d+i*i+p);
+    t=mix(t,d,a);
+    d=a;
+    p*=2./(i+1.);
+  }
+  return t;
+}
+void main(void) {
+  vec2 uv=(FC-.5*R)/MN,st=uv*vec2(2,1);
+  vec3 col=vec3(0);
+  float bg=clouds(vec2(st.x+T*.5,-st.y));
+  uv*=1.-.3*(sin(T*.2)*.5+.5);
+  for (float i=1.; i<12.; i++) {
+    uv+=.1*cos(i*vec2(.1+.01*i, .8)+i*i+T*.5+.1*uv.x);
+    vec2 p=uv;
+    float d=length(p);
+    col+=.00125/d*(cos(sin(i)*vec3(1,2,3))+1.);
+    float b=noise(i+p+bg*1.731);
+    col+=.002*b/length(max(p,vec2(b*p.x*.02,p.y)));
+    col=mix(col,vec3(bg*.25,bg*.137,bg*.05),d);
+  }
+  O=vec4(col,1);
+}`;
+
+function useShaderBackground() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const animationFrameRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const gl = canvas.getContext("webgl2");
+    if (!gl) return;
+
+    const vertexSrc = `#version 300 es
+    precision highp float;
+    in vec4 position;
+    void main(){gl_Position=position;}`;
+
+    const compile = (type: number, source: string) => {
+      const shader = gl.createShader(type);
+      if (!shader) return null;
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        console.error(gl.getShaderInfoLog(shader));
+        gl.deleteShader(shader);
+        return null;
+      }
+      return shader;
+    };
+
+    const vs = compile(gl.VERTEX_SHADER, vertexSrc);
+    const fs = compile(gl.FRAGMENT_SHADER, defaultShaderSource);
+    if (!vs || !fs) return;
+
+    const program = gl.createProgram();
+    if (!program) return;
+    gl.attachShader(program, vs);
+    gl.attachShader(program, fs);
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      console.error(gl.getProgramInfoLog(program));
+      return;
+    }
+
+    const vertices = new Float32Array([-1, 1, -1, -1, 1, 1, 1, -1]);
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+    const position = gl.getAttribLocation(program, "position");
+    gl.enableVertexAttribArray(position);
+    gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+
+    const resolution = gl.getUniformLocation(program, "resolution");
+    const time = gl.getUniformLocation(program, "time");
+
+    const resize = () => {
+      const dpr = Math.max(1, 0.5 * window.devicePixelRatio);
+      canvas.width = Math.floor(canvas.clientWidth * dpr);
+      canvas.height = Math.floor(canvas.clientHeight * dpr);
+      gl.viewport(0, 0, canvas.width, canvas.height);
+    };
+
+    const render = (now: number) => {
+      resize();
+      gl.clearColor(0, 0, 0, 1);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.useProgram(program);
+      if (resolution) gl.uniform2f(resolution, canvas.width, canvas.height);
+      if (time) gl.uniform1f(time, now * 1e-3);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      animationFrameRef.current = requestAnimationFrame(render);
+    };
+
+    animationFrameRef.current = requestAnimationFrame(render);
+    window.addEventListener("resize", resize);
+
+    return () => {
+      window.removeEventListener("resize", resize);
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+      gl.deleteBuffer(buffer);
+      gl.deleteShader(vs);
+      gl.deleteShader(fs);
+      gl.deleteProgram(program);
+    };
+  }, []);
+
+  return canvasRef;
+}
+
+export default function AnimatedShaderHero({ trustBadge, headline, subtitle, className = "", children }: HeroProps) {
+  const canvasRef = useShaderBackground();
+
   return (
-    <section className="mx-auto max-w-7xl px-6 py-8 lg:px-10">
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="rounded-[2rem] border border-slate-800 bg-slate-950 p-7 shadow-[0_20px_100px_rgba(2,12,21,0.35)] lg:col-span-2">
-          <div className="flex items-center gap-2 text-sm text-emerald-300">
-            <Sparkles className="h-4 w-4" /> What KlinAI does
+    <section className={`relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-black ${className}`}>
+      <canvas ref={canvasRef} className="absolute inset-0 h-full w-full touch-none" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.18),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(14,165,233,0.15),transparent_28%)]" />
+
+      <div className="relative z-10 px-6 py-14 md:px-10 md:py-20">
+        {trustBadge ? (
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-emerald-100 backdrop-blur-md">
+            {trustBadge.icons?.length ? <span aria-hidden="true">{trustBadge.icons.join(" ")}</span> : null}
+            <span>{trustBadge.text}</span>
           </div>
-          <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white md:text-4xl">
-            Turn raw clinical data into traceable, CDISC-aligned SDTM workflows.
-          </h2>
-          <p className="mt-4 max-w-3xl text-base leading-8 text-slate-300">
-            KlinAI standardizes messy source data, isolates human-review items, generates mapping specifications,
-            and prepares SDTM outputs with full transformation visibility. It is built for biometrics teams that need
-            faster turnaround without losing control, traceability, or review confidence.
+        ) : null}
+
+        <div className="max-w-4xl">
+          <h1 className="text-4xl font-semibold tracking-tight text-white md:text-6xl lg:text-7xl">
+            <span className="block bg-gradient-to-r from-white via-emerald-100 to-cyan-200 bg-clip-text text-transparent">
+              {headline.line1}
+            </span>
+            <span className="mt-2 block bg-gradient-to-r from-emerald-200 via-cyan-200 to-sky-300 bg-clip-text text-transparent">
+              {headline.line2}
+            </span>
+          </h1>
+          <p className="mt-6 max-w-3xl text-base leading-8 text-slate-200 md:text-xl">
+            {subtitle}
           </p>
-
-          <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-            <SectionCard
-              title="QC first"
-              text="Surface data quality issues before downstream work starts, instead of discovering them late."
-              icon={FileSearch2}
-            />
-            <SectionCard
-              title="Standardize automatically"
-              text="Apply mapping and transformation logic to harmonize raw data where rules allow it."
-              icon={BrainCircuit}
-            />
-            <SectionCard
-              title="Generate spec"
-              text="Produce a reusable specification package that explains how source fields map into outputs."
-              icon={FileStack}
-            />
-            <SectionCard
-              title="Stay traceable"
-              text="Keep the workflow reviewable so teams can see what changed, why, and what still needs attention."
-              icon={ShieldCheck}
-            />
-          </div>
         </div>
 
-        <div className="rounded-[2rem] border border-emerald-400/20 bg-gradient-to-b from-emerald-500/10 to-cyan-500/10 p-7 text-white shadow-[0_20px_100px_rgba(14,165,233,0.18)]">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.2em] text-emerald-200">
-            <Workflow className="h-3.5 w-3.5" /> Demo flow
-          </div>
-          <ol className="mt-6 space-y-5">
-            {[
-              "Upload a raw dataset on the homepage or in the full platform workspace.",
-              "Run Layer 1 QC and spec generation to identify human-review items and create the mapping blueprint.",
-              "Upload the reviewed issue file back into the same job and generate the SDTM package.",
-            ].map((item, index) => (
-              <li key={item} className="flex gap-4">
-                <div className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white/10 text-sm font-semibold text-emerald-200">
-                  {index + 1}
-                </div>
-                <p className="text-sm leading-7 text-slate-100">{item}</p>
-              </li>
-            ))}
-          </ol>
-
-          <div className="mt-8 rounded-[1.5rem] border border-white/10 bg-slate-950/40 p-5">
-            <div className="flex items-center gap-2 text-sm text-emerald-200">
-              <CheckCircle2 className="h-4 w-4" /> Best for pilot conversations
-            </div>
-            <p className="mt-3 text-sm leading-7 text-slate-200">
-              The homepage gives prospects an immediate try-it-now path, while the full platform page keeps the deeper
-              run console and artifact workspace available at <span className="font-medium">klinai.tech/platform</span>.
-            </p>
-            <Link
-              href="/platform"
-              className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-950 transition hover:-translate-y-0.5"
-            >
-              Open full platform <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-        </div>
+        {children ? <div className="mt-10">{children}</div> : null}
       </div>
     </section>
   );
