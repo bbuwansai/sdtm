@@ -217,7 +217,7 @@ export function PlatformDemo({ compact = false }: { compact?: boolean }) {
                   setDetection(null);
                   if (nextFile && selectedDomain === "AUTO") void detectDomain(nextFile);
                 }}
-                className="block w-full text-sm text-[#ddd2c4] file:mr-4 file:rounded-xl file:border-0 file:bg-emerald-400 file:px-4 file:py-2 file:font-medium file:text-[#1a120a]"
+                className="block w-full text-sm text-[#ddd2c4] file:mr-4 file:rounded-xl file:border file:border-[#f0c58d]/20 file:bg-[linear-gradient(180deg,rgba(246,225,196,0.95),rgba(203,148,83,0.92))] file:px-4 file:py-2 file:font-medium file:text-[#1a120a] file:shadow-[0_8px_24px_rgba(0,0,0,0.18)]"
               />
               <div className="mt-4 text-sm text-[#b8afa2]">Accepted: CSV, XLSX, XLS</div>
               {file ? <div className="mt-2 text-sm font-medium text-white">Selected: {file.name}</div> : null}
