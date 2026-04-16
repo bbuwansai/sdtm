@@ -58,11 +58,11 @@ void main(){gl_Position=position;}`;
       this.init();
     }
 
-    updateMove(deltas: number[]) {
+    updateMove(deltas: [number, number]) {
       this.mouseMove = deltas;
     }
 
-    updateMouse(coords: number[]) {
+    updateMouse(coords: [number, number]) {
       this.mouseCoords = coords;
     }
 
@@ -178,17 +178,19 @@ void main(){gl_Position=position;}`;
   class PointerHandler {
     private scale: number;
     private active = false;
-    private pointers = new Map<number, number[]>();
-    private lastCoords = [0, 0];
-    private moves = [0, 0];
+    private pointers = new Map<number, [number, number]>();
+    private lastCoords: [number, number] = [0, 0];
+    private moves: [number, number] = [0, 0];
 
     constructor(element: HTMLCanvasElement, scale: number) {
       this.scale = scale;
 
-      const map = (element: HTMLCanvasElement, scale: number, x: number, y: number) => [
-        x * scale,
-        element.height - y * scale,
-      ];
+      const map = (
+        element: HTMLCanvasElement,
+        scale: number,
+        x: number,
+        y: number
+      ): [number, number] => [x * scale, element.height - y * scale];
 
       element.addEventListener("pointerdown", (e) => {
         this.active = true;
@@ -227,16 +229,16 @@ void main(){gl_Position=position;}`;
       return this.pointers.size;
     }
 
-    get move() {
+    get move(): [number, number] {
       return this.moves;
     }
 
-    get coords() {
+    get coords(): number[] {
       return this.pointers.size > 0 ? Array.from(this.pointers.values()).flat() : [0, 0];
     }
 
-    get first() {
-      return this.pointers.values().next().value || this.lastCoords;
+    get first(): [number, number] {
+      return this.pointers.values().next().value ?? this.lastCoords;
     }
   }
 
@@ -290,8 +292,8 @@ void main(){gl_Position=position;}`;
     return () => {
       window.removeEventListener("resize", resize);
       if (animationFrameRef.current !== null) {
-  cancelAnimationFrame(animationFrameRef.current);
-}
+        cancelAnimationFrame(animationFrameRef.current);
+      }
       if (rendererRef.current) rendererRef.current.reset();
     };
   }, []);
