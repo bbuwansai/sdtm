@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
-import { ArrowRight, Activity, Menu } from "lucide-react";
+import { useState } from "react";
+import { ArrowRight, Activity, Menu, X } from "lucide-react";
 
 export function Logo() {
   return (
@@ -15,10 +18,12 @@ export function Logo() {
 }
 
 export function SiteHeader() {
+  const [mobileOpen, setMobileOpen] = useState(false);
+
   return (
     <header className="sticky top-0 z-50 border-b border-white/6 bg-[#020817]/70 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-10">
-        <Link href="/" aria-label="KlinAI home">
+        <Link href="/" aria-label="KlinAI home" onClick={() => setMobileOpen(false)}>
           <Logo />
         </Link>
 
@@ -45,19 +50,58 @@ export function SiteHeader() {
             href="/platform"
             className="hidden rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white shadow-sm md:inline-flex"
           >
-            Open platform
+            Try live demo
           </Link>
           <a
             href="mailto:bhuwan@klinai.tech?subject=KlinAI%20Demo%20Request"
-            className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-400 via-cyan-400 to-sky-500 px-5 py-2 text-sm font-semibold text-slate-950 shadow-[0_12px_50px_rgba(14,165,233,0.25)]"
+            className="hidden items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-400 via-cyan-400 to-sky-500 px-5 py-2 text-sm font-semibold text-slate-950 shadow-[0_12px_50px_rgba(14,165,233,0.25)] md:inline-flex"
           >
-            Contact sales <ArrowRight className="h-4 w-4" />
+            Book a demo <ArrowRight className="h-4 w-4" />
           </a>
-          <button className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/5 text-slate-200 md:hidden">
-            <Menu className="h-4 w-4" />
+          <button
+            aria-label={mobileOpen ? "Close menu" : "Open menu"}
+            onClick={() => setMobileOpen((prev) => !prev)}
+            className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/5 text-slate-200 md:hidden"
+          >
+            {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
           </button>
         </div>
       </div>
+
+      {mobileOpen ? (
+        <div className="border-t border-white/10 bg-[#020817]/95 px-6 py-4 md:hidden">
+          <div className="flex flex-col gap-3">
+            <Link className="rounded-xl px-3 py-2 text-sm text-slate-200 hover:bg-white/5" href="/#product" onClick={() => setMobileOpen(false)}>
+              Product
+            </Link>
+            <Link className="rounded-xl px-3 py-2 text-sm text-slate-200 hover:bg-white/5" href="/#demo-workspace" onClick={() => setMobileOpen(false)}>
+              Demo
+            </Link>
+            <Link className="rounded-xl px-3 py-2 text-sm text-slate-200 hover:bg-white/5" href="/platform" onClick={() => setMobileOpen(false)}>
+              Platform
+            </Link>
+            <Link className="rounded-xl px-3 py-2 text-sm text-slate-200 hover:bg-white/5" href="/privacy" onClick={() => setMobileOpen(false)}>
+              Privacy
+            </Link>
+            <Link className="rounded-xl px-3 py-2 text-sm text-slate-200 hover:bg-white/5" href="/terms" onClick={() => setMobileOpen(false)}>
+              Terms
+            </Link>
+            <Link
+              href="/platform"
+              onClick={() => setMobileOpen(false)}
+              className="mt-2 inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white"
+            >
+              Try live demo
+            </Link>
+            <a
+              href="mailto:bhuwan@klinai.tech?subject=KlinAI%20Demo%20Request"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-400 via-cyan-400 to-sky-500 px-4 py-3 text-sm font-semibold text-slate-950"
+            >
+              Book a demo <ArrowRight className="h-4 w-4" />
+            </a>
+          </div>
+        </div>
+      ) : null}
     </header>
   );
 }
