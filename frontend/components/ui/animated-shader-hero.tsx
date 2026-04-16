@@ -289,7 +289,9 @@ void main(){gl_Position=position;}`;
 
     return () => {
       window.removeEventListener("resize", resize);
-      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+      if (animationFrameRef.current !== null) {
+  cancelAnimationFrame(animationFrameRef.current);
+}
       if (rendererRef.current) rendererRef.current.reset();
     };
   }, []);
