@@ -37,7 +37,7 @@ export default function AnimatedShaderHero({ trustBadge, headline, subtitle, cla
               </div>
             ) : null}
 
-            <h1 className="mt-8 max-w-5xl text-5xl font-semibold leading-[0.95] tracking-[-0.05em] sm:text-6xl lg:text-[6.2rem]">
+            <h1 className="mt-8 max-w-5xl text-5xl font-semibold leading-[1.02] tracking-[-0.05em] sm:text-6xl lg:text-[5.4rem]">
               <span className="glass-text block">{headline.line1}</span>
               <span className="glass-text block">{headline.line2}</span>
             </h1>
