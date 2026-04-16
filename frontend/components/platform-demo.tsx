@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, CircleAlert, Copy, Download, FileSpreadsheet, FileUp, ScanSearch, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, Copy, Download, FileSpreadsheet, FileUp, ScanSearch, ShieldCheck, Sparkles } from "lucide-react";
 import { API_BASE_URL, type JobSummary, type TimelineEvent } from "@/lib/api";
 
 type Detection = {
@@ -16,35 +16,17 @@ const domainOptions: DomainOption[] = ["AUTO", "DM", "VS", "LB", "AE"];
 
 function StatusPill({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200 backdrop-blur">
+    <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-[#efe6db] backdrop-blur">
       {children}
     </span>
   );
 }
 
-function StepPill({ label, active, complete }: { label: string; active?: boolean; complete?: boolean }) {
-  const tone = complete
-    ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
-    : active
-      ? "border-cyan-400/30 bg-cyan-400/10 text-cyan-200"
-      : "border-white/10 bg-white/5 text-slate-300";
-
-  return <div className={`rounded-full border px-3 py-2 text-xs font-medium ${tone}`}>{label}</div>;
-}
-
-function artifactGroup(label: string) {
-  const value = label.toLowerCase();
-  if (value.includes("spec")) return "Specification";
-  if (value.includes("issue") || value.includes("human") || value.includes("clean") || value.includes("duplicate")) return "QC and review";
-  if (value.includes("sdtm") || value.includes("define") || value.includes("xpt")) return "SDTM outputs";
-  return "Other files";
-}
-
 function levelClass(level: TimelineEvent["level"]) {
-  if (level === "success") return "text-emerald-300";
+  if (level === "success") return "text-[#f4d4a5]";
   if (level === "error") return "text-rose-300";
   if (level === "warning") return "text-amber-300";
-  return "text-cyan-300";
+  return "text-[#f4d4a5]";
 }
 
 function levelLabel(level: TimelineEvent["level"]) {
@@ -180,21 +162,6 @@ export function PlatformDemo({ compact = false }: { compact?: boolean }) {
 
   const existingJobId = (job as (JobSummary & { job_id?: string }) | null)?.job_id;
   const issueCount = timeline.filter((event) => event.level === "error" || event.level === "warning").length;
-  const groupedArtifacts = job?.artifacts
-    ? Object.entries(job.artifacts).reduce<Record<string, Array<[string, string]>>>((acc, entry) => {
-        const group = artifactGroup(entry[0]);
-        acc[group] = [...(acc[group] ?? []), entry];
-        return acc;
-      }, {})
-    : {};
-
-  const banner = job?.status === "failed"
-    ? { tone: "border-rose-400/20 bg-rose-400/10 text-rose-100", icon: CircleAlert, title: "Run failed", body: job.error ?? "Check the run console for the exact error and retry once the file or inputs are corrected." }
-    : job?.status === "completed"
-      ? { tone: "border-emerald-400/20 bg-emerald-400/10 text-emerald-100", icon: CheckCircle2, title: "Run completed", body: phase === "sdtm" ? "Your SDTM step finished successfully. Review the grouped artifacts below." : "Phase 1 completed. Review the outputs, then upload the reviewed human issue log to continue." }
-      : busy
-        ? { tone: "border-cyan-400/20 bg-cyan-400/10 text-cyan-100", icon: Sparkles, title: "Run in progress", body: phase === "sdtm" ? "Generating SDTM outputs from the current job workspace." : "Processing Layer 1 QC and spec generation for the uploaded file." }
-        : null;
 
   return (
     <section id="demo-workspace" className={compact ? "" : "mx-auto max-w-7xl px-6 py-10 lg:px-10"}>
@@ -202,20 +169,14 @@ export function PlatformDemo({ compact = false }: { compact?: boolean }) {
         <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div className="max-w-3xl">
             <StatusPill>
-              <Sparkles className="h-4 w-4 text-emerald-300" /> Live product demo
+              <Sparkles className="h-4 w-4 text-[#f4d4a5]" /> Live product demo
             </StatusPill>
             <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white md:text-4xl">
               Try the workflow directly from the site.
             </h2>
-            <p className="mt-3 text-base leading-8 text-slate-300">
-              Use a sample file or upload your own structured test dataset. Designed for pilot evaluation with biometrics and data management teams.
+            <p className="mt-3 text-base leading-8 text-[#ddd2c4]">
+              Upload a dataset, run Layer 1 QC and spec generation, then continue into the SDTM step from the same job.
             </p>
-            <div className="mt-5 flex flex-wrap gap-3">
-              <StepPill label="Upload" active={!existingJobId && !busy} complete={!!file} />
-              <StepPill label="QC + Spec" active={phase === "layer1_spec" && busy} complete={!!existingJobId} />
-              <StepPill label="Review" active={!!existingJobId && !reviewedHumanFile && !busy} complete={!!reviewedHumanFile} />
-              <StepPill label="SDTM" active={phase === "sdtm" && busy} complete={job?.status === "completed" && phase === "sdtm"} />
-            </div>
           </div>
           <Link
             href="/platform"
@@ -228,17 +189,24 @@ export function PlatformDemo({ compact = false }: { compact?: boolean }) {
 
       <div className={`grid gap-6 ${compact ? "xl:grid-cols-[0.9fr_1.1fr]" : "xl:grid-cols-[0.95fr_1.05fr]"}`}>
         <div className="space-y-6">
-          <div className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-7 backdrop-blur-xl">
+          <div className="rounded-[2rem] border border-white/10 bg-white/[0.045] p-7 backdrop-blur-xl">
             <div className="flex items-center gap-3">
-              <FileUp className="h-5 w-5 text-emerald-300" />
+              <FileUp className="h-5 w-5 text-[#f4d4a5]" />
               <h3 className="text-2xl font-semibold text-white">Upload files</h3>
             </div>
-            <p className="mt-3 text-sm leading-7 text-slate-300">
+            <p className="mt-3 text-sm leading-7 text-[#ddd2c4]">
               Start with the raw source file. After phase 1 completes, upload the reviewed human issue log and continue into SDTM.
             </p>
+            <div className="mt-5 flex flex-wrap gap-2 text-xs uppercase tracking-[0.18em] text-[#f4d4a5]">
+              {['Upload', 'QC + Spec', 'Review', 'SDTM'].map((step) => (
+                <span key={step} className="rounded-full border border-white/10 bg-white/5 px-3 py-2">
+                  {step}
+                </span>
+              ))}
+            </div>
 
-            <div className="mt-6 rounded-[1.75rem] border border-dashed border-white/15 bg-slate-950/40 p-6">
-              <label className="mb-3 block text-sm font-medium text-slate-200">Raw data file</label>
+            <div className="mt-6 rounded-[1.75rem] border border-dashed border-white/15 bg-[#110d09]/55 p-6">
+              <label className="mb-3 block text-sm font-medium text-[#efe6db]">Raw data file</label>
               <input
                 type="file"
                 accept=".csv,.xlsx,.xls"
@@ -249,28 +217,28 @@ export function PlatformDemo({ compact = false }: { compact?: boolean }) {
                   setDetection(null);
                   if (nextFile && selectedDomain === "AUTO") void detectDomain(nextFile);
                 }}
-                className="block w-full text-sm text-slate-300 file:mr-4 file:rounded-xl file:border-0 file:bg-emerald-400 file:px-4 file:py-2 file:font-medium file:text-slate-950"
+                className="block w-full text-sm text-[#ddd2c4] file:mr-4 file:rounded-xl file:border-0 file:bg-emerald-400 file:px-4 file:py-2 file:font-medium file:text-[#1a120a]"
               />
-              <div className="mt-4 text-sm text-slate-400">Accepted: CSV, XLSX, XLS</div>
+              <div className="mt-4 text-sm text-[#b8afa2]">Accepted: CSV, XLSX, XLS</div>
               {file ? <div className="mt-2 text-sm font-medium text-white">Selected: {file.name}</div> : null}
             </div>
 
-            <div className="mt-5 rounded-[1.75rem] border border-dashed border-white/15 bg-slate-950/40 p-6">
-              <label className="mb-3 block text-sm font-medium text-slate-200">Reviewed human issue log file</label>
+            <div className="mt-5 rounded-[1.75rem] border border-dashed border-white/15 bg-[#110d09]/55 p-6">
+              <label className="mb-3 block text-sm font-medium text-[#efe6db]">Reviewed human issue log file</label>
               <input
                 type="file"
                 accept=".csv"
                 onChange={(e) => setReviewedHumanFile(e.target.files?.[0] ?? null)}
-                className="block w-full text-sm text-slate-300 file:mr-4 file:rounded-xl file:border-0 file:bg-white file:px-4 file:py-2 file:font-medium file:text-slate-950"
+                className="block w-full text-sm text-[#ddd2c4] file:mr-4 file:rounded-xl file:border-0 file:bg-white file:px-4 file:py-2 file:font-medium file:text-[#1a120a]"
               />
-              <div className="mt-4 text-sm text-slate-400">Upload this after phase 1 completes.</div>
+              <div className="mt-4 text-sm text-[#b8afa2]">Upload this after phase 1 completes.</div>
               {reviewedHumanFile ? <div className="mt-2 text-sm font-medium text-white">Selected: {reviewedHumanFile.name}</div> : null}
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-7 backdrop-blur-xl">
+          <div className="rounded-[2rem] border border-white/10 bg-white/[0.045] p-7 backdrop-blur-xl">
             <div className="flex items-center gap-3">
-              <ScanSearch className="h-5 w-5 text-cyan-300" />
+              <ScanSearch className="h-5 w-5 text-[#f4d4a5]" />
               <h3 className="text-2xl font-semibold text-white">Run controls</h3>
             </div>
 
@@ -297,42 +265,36 @@ export function PlatformDemo({ compact = false }: { compact?: boolean }) {
             </div>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <div className="space-y-3">
               <button
                 disabled={!file || busy || (selectedDomain === "AUTO" && !detection) || detecting}
                 onClick={() => {
                   setPhase("layer1_spec");
                   void runPipeline("layer1_spec");
                 }}
-                className="w-full rounded-2xl bg-gradient-to-r from-emerald-400 via-cyan-400 to-sky-500 px-5 py-4 text-sm font-semibold text-slate-950 shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-2xl bg-gradient-to-r from-[#f6e1c4] via-[#f3d2a4] to-[#cb9453] px-5 py-4 text-sm font-semibold text-[#1a120a] shadow-lg disabled:opacity-50"
               >
                 {busy && phase === "layer1_spec" ? "Processing…" : detecting ? "Detecting domain…" : "Run Layer 1 + Spec"}
               </button>
-              {!file ? <p className="text-xs text-slate-400">Upload a raw dataset first.</p> : null}
-              </div>
-              <div className="space-y-3">
               <button
                 disabled={!existingJobId || !reviewedHumanFile || busy}
                 onClick={() => {
                   setPhase("sdtm");
                   void runPipeline("sdtm");
                 }}
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm font-semibold text-white disabled:opacity-50"
               >
                 {busy && phase === "sdtm" ? "Processing…" : "Run SDTM"}
               </button>
-              {!existingJobId ? <p className="text-xs text-slate-400">Complete Layer 1 + Spec first to create the job workspace.</p> : !reviewedHumanFile ? <p className="text-xs text-slate-400">Upload the reviewed human issue log to enable SDTM.</p> : null}
-              </div>
             </div>
 
             <div className="mt-6 grid gap-4 md:grid-cols-2">
-              <div className="rounded-[1.5rem] bg-slate-950/50 p-5">
-                <div className="text-sm text-slate-400">Detected domain</div>
+              <div className="rounded-[1.5rem] bg-[#110d09]/55 p-5">
+                <div className="text-sm text-[#b8afa2]">Detected domain</div>
                 <div className="mt-2 text-2xl font-semibold text-white">{detectedLabel}</div>
               </div>
-              <div className="rounded-[1.5rem] bg-slate-950/50 p-5">
-                <div className="text-sm text-slate-400">Active job id</div>
-                <div className="mt-2 break-all text-sm leading-7 text-slate-300">
+              <div className="rounded-[1.5rem] bg-[#110d09]/55 p-5">
+                <div className="text-sm text-[#b8afa2]">Active job id</div>
+                <div className="mt-2 break-all text-sm leading-7 text-[#ddd2c4]">
                   {existingJobId ?? "Run Layer 1 + Spec to create a reusable job workspace."}
                 </div>
               </div>
@@ -341,13 +303,22 @@ export function PlatformDemo({ compact = false }: { compact?: boolean }) {
         </div>
 
         <div className="space-y-6">
-          <div className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-7 backdrop-blur-xl">
+          <div className="rounded-[2rem] border border-white/10 bg-white/[0.045] p-7 backdrop-blur-xl">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div>
                 <h3 className="text-2xl font-semibold text-white">Run console</h3>
-                <p className="mt-3 text-sm leading-7 text-slate-300">
+                <p className="mt-3 text-sm leading-7 text-[#ddd2c4]">
                   One place for detection, Layer 1 QC, spec generation, and SDTM progression in the same job.
                 </p>
+                <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${busy ? 'border-[#f0c58d]/25 bg-[#cb9453]/10 text-[#f5eee4]' : job?.status === 'failed' ? 'border-rose-400/20 bg-rose-400/10 text-rose-100' : job?.status === 'completed' ? 'border-emerald-300/20 bg-emerald-300/10 text-emerald-50' : 'border-white/10 bg-white/[0.04] text-[#efe6db]'}`}>
+                  {busy
+                    ? 'Run in progress. Keep this page open while logs and artifacts update.'
+                    : job?.status === 'failed'
+                      ? 'The latest run failed. Review the console output and try again.'
+                      : job?.status === 'completed'
+                        ? 'Latest run completed. Review outputs and continue to the next step if needed.'
+                        : 'Ready to start. Upload a file, confirm the domain, and launch the workflow.'}
+                </div>
               </div>
               <button
                 onClick={() => void copyLogs()}
@@ -357,40 +328,30 @@ export function PlatformDemo({ compact = false }: { compact?: boolean }) {
               </button>
             </div>
 
-            {banner ? (
-              <div className={`mt-6 flex items-start gap-3 rounded-[1.5rem] border p-4 ${banner.tone}`}>
-                <banner.icon className="mt-0.5 h-5 w-5 shrink-0" />
-                <div>
-                  <div className="font-semibold">{banner.title}</div>
-                  <div className="mt-1 text-sm leading-6 opacity-90">{banner.body}</div>
-                </div>
-              </div>
-            ) : null}
-
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-[1.5rem] bg-slate-950/50 p-5">
-                <div className="text-sm text-slate-400">Status</div>
+              <div className="rounded-[1.5rem] bg-[#110d09]/55 p-5">
+                <div className="text-sm text-[#b8afa2]">Status</div>
                 <div className="mt-2 text-xl font-semibold text-white">{job?.status ?? (busy ? "running" : "idle")}</div>
               </div>
-              <div className="rounded-[1.5rem] bg-slate-950/50 p-5">
-                <div className="text-sm text-slate-400">Current step</div>
+              <div className="rounded-[1.5rem] bg-[#110d09]/55 p-5">
+                <div className="text-sm text-[#b8afa2]">Current step</div>
                 <div className="mt-2 text-xl font-semibold text-white">{job?.current_step ?? "Waiting"}</div>
               </div>
-              <div className="rounded-[1.5rem] bg-slate-950/50 p-5">
-                <div className="text-sm text-slate-400">Flagged log lines</div>
+              <div className="rounded-[1.5rem] bg-[#110d09]/55 p-5">
+                <div className="text-sm text-[#b8afa2]">Flagged log lines</div>
                 <div className="mt-2 text-xl font-semibold text-white">{issueCount}</div>
               </div>
             </div>
 
-            <div className="mt-6 overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#020617] shadow-inner">
-              <div className="flex items-center justify-between border-b border-white/10 px-5 py-3 text-xs uppercase tracking-[0.18em] text-slate-400">
+            <div className="mt-6 overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#0d0906] shadow-inner">
+              <div className="flex items-center justify-between border-b border-white/10 px-5 py-3 text-xs uppercase tracking-[0.18em] text-[#b8afa2]">
                 <span>Live process output</span>
                 <span>{timeline.length} lines</span>
               </div>
-              <div className={`${compact ? "max-h-[22rem]" : "max-h-[28rem]"} overflow-auto px-5 py-4 font-mono text-sm leading-7 text-slate-100`}>
+              <div className={`${compact ? "max-h-[22rem]" : "max-h-[28rem]"} overflow-auto px-5 py-4 font-mono text-sm leading-7 text-[#f5eee4]`}>
                 {timeline.map((event, index) => (
                   <div key={`${event.time}-${index}`} className="grid grid-cols-[72px_52px_1fr] gap-3 border-b border-white/5 py-2 last:border-b-0">
-                    <span className="text-slate-500">{new Date(event.time).toLocaleTimeString()}</span>
+                    <span className="text-[#8f8579]">{new Date(event.time).toLocaleTimeString()}</span>
                     <span className={levelClass(event.level)}>{levelLabel(event.level)}</span>
                     <span className="whitespace-pre-wrap break-words">{event.message}</span>
                   </div>
@@ -399,48 +360,63 @@ export function PlatformDemo({ compact = false }: { compact?: boolean }) {
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-7 backdrop-blur-xl">
+          <div className="rounded-[2rem] border border-white/10 bg-white/[0.045] p-7 backdrop-blur-xl">
             <div className="flex items-center gap-3">
-              <ShieldCheck className="h-5 w-5 text-emerald-300" />
+              <ShieldCheck className="h-5 w-5 text-[#f4d4a5]" />
               <h3 className="text-2xl font-semibold text-white">Outputs</h3>
             </div>
-            <p className="mt-3 text-sm leading-7 text-slate-300">
+            <p className="mt-3 text-sm leading-7 text-[#ddd2c4]">
               Download the human review issue log, spec package, and final SDTM artifacts from the same workspace.
             </p>
 
-            <div className="mt-6 grid gap-4">
+            <div className="mt-6 grid gap-5">
               {job && Object.keys(job.artifacts).length ? (
-                Object.entries(groupedArtifacts).map(([group, items]) => (
-                  <div key={group} className="rounded-[1.5rem] bg-slate-950/50 p-4">
-                    <div className="mb-3 text-sm font-semibold text-white">{group}</div>
-                    <div className="grid gap-3">
-                      {items.map(([label, url]) => (
-                        <a
-                          key={label}
-                          href={`${API_BASE_URL}${url}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex items-center justify-between rounded-2xl border border-white/8 bg-slate-900/70 px-5 py-4 text-sm text-slate-100 transition hover:bg-slate-900"
-                        >
-                          <span>{label}</span>
-                          <Download className="h-4 w-4" />
-                        </a>
-                      ))}
+                ([
+                  {
+                    title: 'QC + review artifacts',
+                    items: Object.entries(job.artifacts).filter(([label]) => /issue|clean|spec|review|layer/i.test(label)),
+                  },
+                  {
+                    title: 'SDTM + final outputs',
+                    items: Object.entries(job.artifacts).filter(([label]) => /sdtm|exception|final|define|xpt/i.test(label)),
+                  },
+                  {
+                    title: 'Other downloads',
+                    items: Object.entries(job.artifacts).filter(([label]) => !/issue|clean|spec|review|layer|sdtm|exception|final|define|xpt/i.test(label)),
+                  },
+                ] as const)
+                  .filter((group) => group.items.length)
+                  .map((group) => (
+                    <div key={group.title} className="rounded-[1.5rem] border border-white/10 bg-[#110d09]/40 p-4">
+                      <div className="mb-3 text-xs uppercase tracking-[0.18em] text-[#f4d4a5]">{group.title}</div>
+                      <div className="grid gap-3">
+                        {group.items.map(([label, url]) => (
+                          <a
+                            key={label}
+                            href={`${API_BASE_URL}${url}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center justify-between rounded-2xl bg-[#110d09]/55 px-5 py-4 text-sm text-[#f5eee4] transition hover:bg-[#17110c]"
+                          >
+                            <span>{label}</span>
+                            <Download className="h-4 w-4" />
+                          </a>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))
+                  ))
               ) : (
-                <div className="rounded-[1.5rem] bg-slate-950/50 p-5 text-sm leading-7 text-slate-300">
+                <div className="rounded-[1.5rem] bg-[#110d09]/55 p-5 text-sm leading-7 text-[#ddd2c4]">
                   Run a job to see downloadable artifacts here.
                 </div>
               )}
             </div>
 
             {compact ? (
-              <div className="mt-6 rounded-[1.5rem] border border-cyan-400/20 bg-cyan-400/5 p-5 text-sm leading-7 text-slate-200">
+              <div className="mt-6 rounded-[1.5rem] border border-[#f0c58d]/20 bg-[#cb9453]/10 p-5 text-sm leading-7 text-[#efe6db]">
                 Need more room for the workflow? Use the dedicated platform page for the same demo with a larger workspace.
                 <div>
-                  <Link href="/platform" className="mt-4 inline-flex items-center gap-2 font-semibold text-cyan-200">
+                  <Link href="/platform" className="mt-4 inline-flex items-center gap-2 font-semibold text-[#f4d4a5]">
                     Open klinai.tech/platform <ArrowRight className="h-4 w-4" />
                   </Link>
                 </div>
