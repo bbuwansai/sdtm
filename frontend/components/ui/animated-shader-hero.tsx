@@ -27,8 +27,8 @@ export default function AnimatedShaderHero({ trustBadge, headline, subtitle, cla
         <div className="absolute right-[-8%] top-[10%] h-[24rem] w-[30rem] rounded-full border border-[#e2b47d]/10 bg-[radial-gradient(circle,rgba(136,90,52,0.25)_0%,transparent_62%)] blur-2xl" />
       </div>
 
-      <div className="relative mx-auto max-w-[1600px] px-6 pb-14 pt-16 sm:px-8 lg:px-14 lg:pb-18 lg:pt-24">
-        <div className="soft-panel rounded-[2.75rem] px-6 py-8 sm:px-8 lg:px-12 lg:py-12">
+      <div className="relative w-full px-6 pb-14 pt-16 sm:px-8 lg:px-10 lg:pb-18 lg:pt-24">
+       <div className="w-full px-0 py-4 sm:px-0 lg:px-0 lg:py-8">
           <div className="max-w-4xl">
             {trustBadge ? (
               <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-5 py-2 text-sm text-[#f7ead8] shadow-[0_8px_40px_rgba(0,0,0,0.18)]">
