@@ -68,9 +68,9 @@ export function ProductNarrative() {
           </div>
           <ol className="mt-6 space-y-5">
             {[
-              "Upload a raw dataset on the homepage or in the full platform workspace.",
-              "Run Layer 1 QC and spec generation to identify human-review items and create the mapping blueprint.",
-              "Upload the reviewed issue file back into the same job and generate the SDTM package.",
+              "Upload a raw dataset from the homepage or full platform workspace.",
+              "Run QC and specification generation to surface issues and create the mapping blueprint.",
+              "Upload the reviewed issue file and generate the SDTM output package.",
             ].map((item, index) => (
               <li key={item} className="flex gap-4">
                 <div className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white/10 text-sm font-semibold text-[#f4d4a5]">
@@ -86,8 +86,7 @@ export function ProductNarrative() {
               <CheckCircle2 className="h-4 w-4" /> Built for pilot conversations
             </div>
             <p className="mt-3 text-sm leading-7 text-[#e6dbce]">
-              Use a sample file or upload your own structured test dataset. Designed for pilot evaluation with biometrics and
-              data management teams.
+              Use a sample file or upload your own structured test dataset to evaluate how the workflow behaves on realistic inputs.
             </p>
             <Link
               href="/platform"
