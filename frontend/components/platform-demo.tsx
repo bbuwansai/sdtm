@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight, Copy, Download, FileSpreadsheet, FileUp, ScanSearch, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, CheckCircle2, CircleAlert, Copy, Download, FileSpreadsheet, FileUp, ScanSearch, ShieldCheck, Sparkles } from "lucide-react";
 import { API_BASE_URL, type JobSummary, type TimelineEvent } from "@/lib/api";
 
 type Detection = {
@@ -20,6 +20,24 @@ function StatusPill({ children }: { children: ReactNode }) {
       {children}
     </span>
   );
+}
+
+function StepPill({ label, active, complete }: { label: string; active?: boolean; complete?: boolean }) {
+  const tone = complete
+    ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
+    : active
+      ? "border-cyan-400/30 bg-cyan-400/10 text-cyan-200"
+      : "border-white/10 bg-white/5 text-slate-300";
+
+  return <div className={`rounded-full border px-3 py-2 text-xs font-medium ${tone}`}>{label}</div>;
+}
+
+function artifactGroup(label: string) {
+  const value = label.toLowerCase();
+  if (value.includes("spec")) return "Specification";
+  if (value.includes("issue") || value.includes("human") || value.includes("clean") || value.includes("duplicate")) return "QC and review";
+  if (value.includes("sdtm") || value.includes("define") || value.includes("xpt")) return "SDTM outputs";
+  return "Other files";
 }
 
 function levelClass(level: TimelineEvent["level"]) {
@@ -162,6 +180,21 @@ export function PlatformDemo({ compact = false }: { compact?: boolean }) {
 
   const existingJobId = (job as (JobSummary & { job_id?: string }) | null)?.job_id;
   const issueCount = timeline.filter((event) => event.level === "error" || event.level === "warning").length;
+  const groupedArtifacts = job?.artifacts
+    ? Object.entries(job.artifacts).reduce<Record<string, Array<[string, string]>>>((acc, entry) => {
+        const group = artifactGroup(entry[0]);
+        acc[group] = [...(acc[group] ?? []), entry];
+        return acc;
+      }, {})
+    : {};
+
+  const banner = job?.status === "failed"
+    ? { tone: "border-rose-400/20 bg-rose-400/10 text-rose-100", icon: CircleAlert, title: "Run failed", body: job.error ?? "Check the run console for the exact error and retry once the file or inputs are corrected." }
+    : job?.status === "completed"
+      ? { tone: "border-emerald-400/20 bg-emerald-400/10 text-emerald-100", icon: CheckCircle2, title: "Run completed", body: phase === "sdtm" ? "Your SDTM step finished successfully. Review the grouped artifacts below." : "Phase 1 completed. Review the outputs, then upload the reviewed human issue log to continue." }
+      : busy
+        ? { tone: "border-cyan-400/20 bg-cyan-400/10 text-cyan-100", icon: Sparkles, title: "Run in progress", body: phase === "sdtm" ? "Generating SDTM outputs from the current job workspace." : "Processing Layer 1 QC and spec generation for the uploaded file." }
+        : null;
 
   return (
     <section id="demo-workspace" className={compact ? "" : "mx-auto max-w-7xl px-6 py-10 lg:px-10"}>
@@ -175,8 +208,14 @@ export function PlatformDemo({ compact = false }: { compact?: boolean }) {
               Try the workflow directly from the site.
             </h2>
             <p className="mt-3 text-base leading-8 text-slate-300">
-              Upload a dataset, run Layer 1 QC and spec generation, then continue into the SDTM step from the same job.
+              Use a sample file or upload your own structured test dataset. Designed for pilot evaluation with biometrics and data management teams.
             </p>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <StepPill label="Upload" active={!existingJobId && !busy} complete={!!file} />
+              <StepPill label="QC + Spec" active={phase === "layer1_spec" && busy} complete={!!existingJobId} />
+              <StepPill label="Review" active={!!existingJobId && !reviewedHumanFile && !busy} complete={!!reviewedHumanFile} />
+              <StepPill label="SDTM" active={phase === "sdtm" && busy} complete={job?.status === "completed" && phase === "sdtm"} />
+            </div>
           </div>
           <Link
             href="/platform"
@@ -258,26 +297,32 @@ export function PlatformDemo({ compact = false }: { compact?: boolean }) {
             </div>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <div className="space-y-3">
               <button
                 disabled={!file || busy || (selectedDomain === "AUTO" && !detection) || detecting}
                 onClick={() => {
                   setPhase("layer1_spec");
                   void runPipeline("layer1_spec");
                 }}
-                className="rounded-2xl bg-gradient-to-r from-emerald-400 via-cyan-400 to-sky-500 px-5 py-4 text-sm font-semibold text-slate-950 shadow-lg disabled:opacity-50"
+                className="w-full rounded-2xl bg-gradient-to-r from-emerald-400 via-cyan-400 to-sky-500 px-5 py-4 text-sm font-semibold text-slate-950 shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {busy && phase === "layer1_spec" ? "Processing…" : detecting ? "Detecting domain…" : "Run Layer 1 + Spec"}
               </button>
+              {!file ? <p className="text-xs text-slate-400">Upload a raw dataset first.</p> : null}
+              </div>
+              <div className="space-y-3">
               <button
                 disabled={!existingJobId || !reviewedHumanFile || busy}
                 onClick={() => {
                   setPhase("sdtm");
                   void runPipeline("sdtm");
                 }}
-                className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm font-semibold text-white disabled:opacity-50"
+                className="w-full rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {busy && phase === "sdtm" ? "Processing…" : "Run SDTM"}
               </button>
+              {!existingJobId ? <p className="text-xs text-slate-400">Complete Layer 1 + Spec first to create the job workspace.</p> : !reviewedHumanFile ? <p className="text-xs text-slate-400">Upload the reviewed human issue log to enable SDTM.</p> : null}
+              </div>
             </div>
 
             <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -311,6 +356,16 @@ export function PlatformDemo({ compact = false }: { compact?: boolean }) {
                 <Copy className="h-4 w-4" /> {copied ? "Copied" : "Copy logs"}
               </button>
             </div>
+
+            {banner ? (
+              <div className={`mt-6 flex items-start gap-3 rounded-[1.5rem] border p-4 ${banner.tone}`}>
+                <banner.icon className="mt-0.5 h-5 w-5 shrink-0" />
+                <div>
+                  <div className="font-semibold">{banner.title}</div>
+                  <div className="mt-1 text-sm leading-6 opacity-90">{banner.body}</div>
+                </div>
+              </div>
+            ) : null}
 
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
               <div className="rounded-[1.5rem] bg-slate-950/50 p-5">
@@ -353,19 +408,26 @@ export function PlatformDemo({ compact = false }: { compact?: boolean }) {
               Download the human review issue log, spec package, and final SDTM artifacts from the same workspace.
             </p>
 
-            <div className="mt-6 grid gap-3">
+            <div className="mt-6 grid gap-4">
               {job && Object.keys(job.artifacts).length ? (
-                Object.entries(job.artifacts).map(([label, url]) => (
-                  <a
-                    key={label}
-                    href={`${API_BASE_URL}${url}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center justify-between rounded-2xl bg-slate-950/50 px-5 py-4 text-sm text-slate-100 transition hover:bg-slate-900"
-                  >
-                    <span>{label}</span>
-                    <Download className="h-4 w-4" />
-                  </a>
+                Object.entries(groupedArtifacts).map(([group, items]) => (
+                  <div key={group} className="rounded-[1.5rem] bg-slate-950/50 p-4">
+                    <div className="mb-3 text-sm font-semibold text-white">{group}</div>
+                    <div className="grid gap-3">
+                      {items.map(([label, url]) => (
+                        <a
+                          key={label}
+                          href={`${API_BASE_URL}${url}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center justify-between rounded-2xl border border-white/8 bg-slate-900/70 px-5 py-4 text-sm text-slate-100 transition hover:bg-slate-900"
+                        >
+                          <span>{label}</span>
+                          <Download className="h-4 w-4" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
                 ))
               ) : (
                 <div className="rounded-[1.5rem] bg-slate-950/50 p-5 text-sm leading-7 text-slate-300">
