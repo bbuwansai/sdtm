@@ -229,7 +229,7 @@ export function PlatformDemo({ compact = false }: { compact?: boolean }) {
                 type="file"
                 accept=".csv"
                 onChange={(e) => setReviewedHumanFile(e.target.files?.[0] ?? null)}
-                className="block w-full text-sm text-[#ddd2c4] file:mr-4 file:rounded-xl file:border-0 file:bg-white file:px-4 file:py-2 file:font-medium file:text-[#1a120a]"
+                className="block w-full text-sm text-[#ddd2c4] file:mr-4 file:rounded-xl file:border file:border-[#f0c58d]/20 file:bg-[linear-gradient(180deg,rgba(255,248,239,0.96),rgba(234,214,190,0.92))] file:px-4 file:py-2 file:font-medium file:text-[#1a120a] file:shadow-[0_8px_24px_rgba(0,0,0,0.16)]"
               />
               <div className="mt-4 text-sm text-[#b8afa2]">Upload this after phase 1 completes.</div>
               {reviewedHumanFile ? <div className="mt-2 text-sm font-medium text-white">Selected: {reviewedHumanFile.name}</div> : null}
