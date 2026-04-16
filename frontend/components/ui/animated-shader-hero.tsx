@@ -31,9 +31,9 @@ const useShaderBackground = () => {
     private buffer: WebGLBuffer | null = null;
     private scale: number;
     private shaderSource: string;
-    private mouseMove = [0, 0];
-    private mouseCoords = [0, 0];
-    private pointerCoords = [0, 0];
+    private mouseMove: [number, number] = [0, 0];
+    private mouseCoords: [number, number] = [0, 0];
+    private pointerCoords: number[] = [0, 0];
     private nbrOfPointers = 0;
 
     private vertexSrc = `#version 300 es
