@@ -254,7 +254,7 @@ export function PlatformDemo({ compact = false }: { compact?: boolean }) {
                     setDetection({ domain: next, matched_columns: [] });
                   }
                 }}
-                className="w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-4 text-sm text-white outline-none"
+                className="w-full rounded-2xl border border-[#f0c58d]/16 bg-[linear-gradient(180deg,rgba(18,13,9,0.92),rgba(10,8,6,0.92))] px-4 py-4 text-sm text-[#f8f2e9] shadow-inner outline-none focus:border-[#f0c58d]/30"
               >
                 {domainOptions.map((option) => (
                   <option key={option} value={option}>
