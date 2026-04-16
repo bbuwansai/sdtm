@@ -12,21 +12,21 @@ export default function HomePage() {
 
       <div className="mx-auto max-w-7xl px-6 pt-6 lg:px-10">
         <AnimatedShaderHero
-          trustBadge={{ text: "Built for biometrics, data management, and CRO workflows.", icons: ["✦"] }}
+          trustBadge={{ text: "Built for biometrics, data management, and CRO teams.", icons: ["✦"] }}
           headline={{
-            line1: "Raw clinical data",
-            line2: "to traceable SDTM workflows.",
+            line1: "Raw clinical data to",
+            line2: "traceable CDISC-aligned SDTM.",
           }}
-          subtitle="KlinAI standardizes messy source data, separates human-review items from rule-based transformations, generates mapping specifications, and supports CDISC-aligned SDTM delivery in one reviewable workflow."
+          subtitle="KlinAI runs QC and standardization, separates human-review issues from rule-based transformations, generates AI-assisted mapping specs, and supports traceable SDTM workflows in minutes, not months."
           className="shadow-[0_30px_120px_rgba(2,12,21,0.45)]"
         >
           <div className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
             <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/50 p-6 backdrop-blur-xl">
               <div className="flex flex-wrap gap-3 text-sm text-slate-200">
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Layer 1 QC</span>
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Spec generation</span>
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">SDTM workflow</span>
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Traceable outputs</span>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Raw clinical data</span>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">QC + standardization</span>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">AI mapping spec</span>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Traceable SDTM</span>
               </div>
               <div className="mt-6 grid gap-4 md:grid-cols-3">
                 <div className="rounded-[1.5rem] bg-white/5 p-5">
@@ -39,37 +39,37 @@ export default function HomePage() {
                   <div className="flex items-center gap-2 text-sm text-slate-300">
                     <ShieldCheck className="h-4 w-4 text-cyan-300" /> Reviewability
                   </div>
-                  <div className="mt-2 text-3xl font-semibold text-white">Full workflow visibility</div>
+                  <div className="mt-2 text-3xl font-semibold text-white">Fully traceable</div>
                 </div>
                 <div className="rounded-[1.5rem] bg-white/5 p-5">
                   <div className="flex items-center gap-2 text-sm text-slate-300">
-                    <CheckCircle2 className="h-4 w-4 text-sky-300" /> Demo access
+                    <CheckCircle2 className="h-4 w-4 text-sky-300" /> Access
                   </div>
-                  <div className="mt-2 text-3xl font-semibold text-white">Homepage + platform</div>
+                  <div className="mt-2 text-3xl font-semibold text-white">Live demo on-page</div>
                 </div>
               </div>
             </div>
 
             <div className="rounded-[1.75rem] border border-emerald-300/20 bg-gradient-to-b from-emerald-400/10 to-cyan-500/10 p-6 backdrop-blur-xl">
-              <div className="text-sm uppercase tracking-[0.18em] text-emerald-200">For prospects and pilots</div>
-              <h2 className="mt-4 text-2xl font-semibold text-white">Give clients a clear first impression.</h2>
+              <div className="text-sm uppercase tracking-[0.18em] text-emerald-200">Pilot-ready evaluation</div>
+              <h2 className="mt-4 text-2xl font-semibold text-white">Give buyers a clear first impression.</h2>
               <p className="mt-4 text-sm leading-7 text-slate-200">
-                The homepage now speaks to outcomes and product value first. The live demo remains accessible on the
-                homepage and at <span className="font-medium">klinai.tech/platform</span> for deeper exploration.
+                Use a sample file or upload your own structured test dataset. Designed for pilot evaluation with biometrics
+                and data management teams.
               </p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 <Link
                   href="#demo-workspace"
                   className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-slate-950"
                 >
-                  Jump to live demo <ArrowRight className="h-4 w-4" />
+                  Try live demo <ArrowRight className="h-4 w-4" />
                 </Link>
-                <Link
-                  href="/platform"
+                <a
+                  href="mailto:bhuwan@klinai.tech?subject=KlinAI%20Demo%20Request"
                   className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white"
                 >
-                  View full platform
-                </Link>
+                  Book a demo
+                </a>
               </div>
             </div>
           </div>
