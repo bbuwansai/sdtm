@@ -311,7 +311,7 @@ export default function AnimatedShaderHero({
   const canvasRef = useShaderBackground();
 
   return (
-    <section className={`relative w-full overflow-hidden bg-black ${className}`}>
+    <section className={`relative min-h-screen w-full overflow-hidden bg-black ${className}`}>
       <style jsx>{`
         @keyframes fade-in-down {
           from {
@@ -367,9 +367,9 @@ export default function AnimatedShaderHero({
         style={{ background: "black" }}
       />
 
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,3,2,0.2)_0%,rgba(5,3,2,0.42)_55%,rgba(5,3,2,0.82)_100%)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,3,2,0.08)_0%,rgba(5,3,2,0.28)_48%,rgba(5,3,2,0.72)_100%)]" />
 
-      <div className="relative z-10 mx-auto w-full max-w-7xl px-6 pb-14 pt-16 sm:px-8 lg:px-10 lg:pb-20 lg:pt-24">
+      <div className="absolute inset-0 z-10 flex flex-col items-center justify-center px-6 text-white">
         {trustBadge ? (
           <div className="mb-8 animate-fade-in-down">
             <div className="inline-flex items-center gap-2 rounded-full border border-[#f0c58d]/20 bg-[#1a120b]/35 px-5 py-2.5 text-sm text-[#f7ead8] backdrop-blur-md">
@@ -379,24 +379,30 @@ export default function AnimatedShaderHero({
           </div>
         ) : null}
 
-        <div className="max-w-5xl">
+        <div className="mx-auto max-w-5xl text-center">
           <div className="space-y-2">
-            <h1 className="animate-fade-in-up animation-delay-200 text-5xl font-semibold leading-[1.02] tracking-[-0.05em] text-white sm:text-6xl lg:text-[5.4rem]">
-              <span className="block bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(255,249,240,0.92)_48%,rgba(231,223,214,0.72)_100%)] bg-clip-text text-transparent">
+            <h1 className="animate-fade-in-up animation-delay-200 text-5xl font-bold leading-[1.02] tracking-[-0.05em] sm:text-6xl lg:text-8xl">
+              <span className="block bg-gradient-to-r from-orange-300 via-yellow-400 to-amber-300 bg-clip-text text-transparent drop-shadow-[0_2px_16px_rgba(255,185,80,0.16)]">
                 {headline.line1}
               </span>
-              <span className="block bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(255,249,240,0.92)_48%,rgba(231,223,214,0.72)_100%)] bg-clip-text text-transparent">
+              <span className="block bg-gradient-to-r from-yellow-300 via-orange-400 to-red-400 bg-clip-text text-transparent drop-shadow-[0_2px_16px_rgba(255,185,80,0.16)]">
                 {headline.line2}
               </span>
             </h1>
           </div>
 
           <div className="mt-7 max-w-3xl animate-fade-in-up animation-delay-400">
-            <p className="text-lg leading-8 text-[#f0e7db] sm:text-[1.28rem] sm:leading-9">{subtitle}</p>
+            <p className="text-lg font-light leading-8 text-orange-100/90 sm:text-[1.28rem] sm:leading-9">
+              {subtitle}
+            </p>
           </div>
         </div>
 
-        {children ? <div className="mt-10 animate-fade-in-up animation-delay-600">{children}</div> : null}
+        {children ? (
+          <div className="mt-12 w-full max-w-6xl animate-fade-in-up animation-delay-600">
+            {children}
+          </div>
+        ) : null}
       </div>
     </section>
   );
@@ -450,10 +456,12 @@ void main(void) {
     uv+=.1*cos(i*vec2(.1+.01*i, .8)+i*i+T*.5+.1*uv.x);
     vec2 p=uv;
     float d=length(p);
-    col+=.00125/d*(cos(sin(i)*vec3(1,2,3))+1.);
+    col+=.0025/d*(cos(sin(i)*vec3(1,2,3))+1.);
     float b=noise(i+p+bg*1.731);
-    col+=.002*b/length(max(p,vec2(b*p.x*.02,p.y)));
-    col=mix(col,vec3(bg*.25,bg*.137,bg*.05),d);
+    col+=.004*b/length(max(p,vec2(b*p.x*.02,p.y)));
+    col=mix(col,vec3(bg*.28,bg*.16,bg*.06),d);
   }
+  col = pow(col, vec3(0.82));
+  col *= 1.22;
   O=vec4(col,1);
 }`;
