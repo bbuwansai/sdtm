@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 interface HeroProps {
   trustBadge?: {
@@ -16,181 +16,39 @@ interface HeroProps {
   children?: ReactNode;
 }
 
-const defaultShaderSource = `#version 300 es
-precision highp float;
-out vec4 O;
-uniform vec2 resolution;
-uniform float time;
-#define FC gl_FragCoord.xy
-#define T time
-#define R resolution
-#define MN min(R.x,R.y)
-float rnd(vec2 p) {
-  p=fract(p*vec2(12.9898,78.233));
-  p+=dot(p,p+34.56);
-  return fract(p.x*p.y);
-}
-float noise(in vec2 p) {
-  vec2 i=floor(p), f=fract(p), u=f*f*(3.-2.*f);
-  float a=rnd(i), b=rnd(i+vec2(1,0)), c=rnd(i+vec2(0,1)), d=rnd(i+1.);
-  return mix(mix(a,b,u.x),mix(c,d,u.x),u.y);
-}
-float fbm(vec2 p) {
-  float t=.0, a=1.; mat2 m=mat2(1.,-.5,.2,1.2);
-  for (int i=0; i<5; i++) {
-    t+=a*noise(p);
-    p*=2.*m;
-    a*=.5;
-  }
-  return t;
-}
-float clouds(vec2 p) {
-  float d=1., t=.0;
-  for (float i=.0; i<3.; i++) {
-    float a=d*fbm(i*10.+p.x*.2+.2*(1.+i)*p.y+d+i*i+p);
-    t=mix(t,d,a);
-    d=a;
-    p*=2./(i+1.);
-  }
-  return t;
-}
-void main(void) {
-  vec2 uv=(FC-.5*R)/MN,st=uv*vec2(2,1);
-  vec3 col=vec3(0);
-  float bg=clouds(vec2(st.x+T*.5,-st.y));
-  uv*=1.-.3*(sin(T*.2)*.5+.5);
-  for (float i=1.; i<12.; i++) {
-    uv+=.1*cos(i*vec2(.1+.01*i, .8)+i*i+T*.5+.1*uv.x);
-    vec2 p=uv;
-    float d=length(p);
-    col+=.00125/d*(cos(sin(i)*vec3(1,2,3))+1.);
-    float b=noise(i+p+bg*1.731);
-    col+=.002*b/length(max(p,vec2(b*p.x*.02,p.y)));
-    col=mix(col,vec3(bg*.25,bg*.137,bg*.05),d);
-  }
-  O=vec4(col,1);
-}`;
-
-function useShaderBackground() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animationFrameRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const gl = canvas.getContext("webgl2");
-    if (!gl) return;
-
-    const vertexSrc = `#version 300 es
-    precision highp float;
-    in vec4 position;
-    void main(){gl_Position=position;}`;
-
-    const compile = (type: number, source: string) => {
-      const shader = gl.createShader(type);
-      if (!shader) return null;
-      gl.shaderSource(shader, source);
-      gl.compileShader(shader);
-      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-        console.error(gl.getShaderInfoLog(shader));
-        gl.deleteShader(shader);
-        return null;
-      }
-      return shader;
-    };
-
-    const vs = compile(gl.VERTEX_SHADER, vertexSrc);
-    const fs = compile(gl.FRAGMENT_SHADER, defaultShaderSource);
-    if (!vs || !fs) return;
-
-    const program = gl.createProgram();
-    if (!program) return;
-    gl.attachShader(program, vs);
-    gl.attachShader(program, fs);
-    gl.linkProgram(program);
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-      console.error(gl.getProgramInfoLog(program));
-      return;
-    }
-
-    const vertices = new Float32Array([-1, 1, -1, -1, 1, 1, 1, -1]);
-    const buffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
-
-    const position = gl.getAttribLocation(program, "position");
-    gl.enableVertexAttribArray(position);
-    gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
-
-    const resolution = gl.getUniformLocation(program, "resolution");
-    const time = gl.getUniformLocation(program, "time");
-
-    const resize = () => {
-      const dpr = Math.max(1, 0.5 * window.devicePixelRatio);
-      canvas.width = Math.floor(canvas.clientWidth * dpr);
-      canvas.height = Math.floor(canvas.clientHeight * dpr);
-      gl.viewport(0, 0, canvas.width, canvas.height);
-    };
-
-    const render = (now: number) => {
-      resize();
-      gl.clearColor(0, 0, 0, 1);
-      gl.clear(gl.COLOR_BUFFER_BIT);
-      gl.useProgram(program);
-      if (resolution) gl.uniform2f(resolution, canvas.width, canvas.height);
-      if (time) gl.uniform1f(time, now * 1e-3);
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-      animationFrameRef.current = requestAnimationFrame(render);
-    };
-
-    animationFrameRef.current = requestAnimationFrame(render);
-    window.addEventListener("resize", resize);
-
-    return () => {
-      window.removeEventListener("resize", resize);
-      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-      gl.deleteBuffer(buffer);
-      gl.deleteShader(vs);
-      gl.deleteShader(fs);
-      gl.deleteProgram(program);
-    };
-  }, []);
-
-  return canvasRef;
-}
-
 export default function AnimatedShaderHero({ trustBadge, headline, subtitle, className = "", children }: HeroProps) {
-  const canvasRef = useShaderBackground();
-
   return (
-    <section className={`relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-black ${className}`}>
-      <canvas ref={canvasRef} className="absolute inset-0 h-full w-full touch-none" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.18),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(14,165,233,0.15),transparent_28%)]" />
+    <section className={`relative isolate overflow-hidden border-b border-white/6 bg-[#090705] ${className}`}>
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_22%,rgba(188,120,55,0.34),transparent_26%),radial-gradient(circle_at_58%_16%,rgba(247,214,173,0.14),transparent_18%),radial-gradient(circle_at_86%_28%,rgba(94,54,24,0.28),transparent_22%),linear-gradient(140deg,#0b0705_5%,#1a1008_42%,#090705_100%)]" />
+      <div className="absolute inset-0 opacity-70">
+        <div className="absolute left-[-12%] top-[18%] h-56 w-[58%] rounded-full bg-[radial-gradient(circle,rgba(255,229,194,0.55)_0%,rgba(255,182,92,0.14)_36%,transparent_72%)] blur-3xl animate-pulse" />
+        <div className="absolute left-[10%] top-[44%] h-px w-[52%] bg-gradient-to-r from-transparent via-[#ffd7a6] to-transparent opacity-95 shadow-[0_0_22px_rgba(255,215,166,0.9)]" />
+        <div className="absolute left-[8%] top-[53%] h-px w-[44%] bg-gradient-to-r from-transparent via-[#fff1dc] to-transparent opacity-80 shadow-[0_0_18px_rgba(255,241,220,0.7)]" />
+        <div className="absolute right-[-8%] top-[10%] h-[24rem] w-[30rem] rounded-full border border-[#e2b47d]/10 bg-[radial-gradient(circle,rgba(136,90,52,0.25)_0%,transparent_62%)] blur-2xl" />
+      </div>
 
-      <div className="relative z-10 px-6 py-14 md:px-10 md:py-20">
-        {trustBadge ? (
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-emerald-100 backdrop-blur-md">
-            {trustBadge.icons?.length ? <span aria-hidden="true">{trustBadge.icons.join(" ")}</span> : null}
-            <span>{trustBadge.text}</span>
+      <div className="relative mx-auto max-w-[1600px] px-6 pb-14 pt-16 sm:px-8 lg:px-14 lg:pb-18 lg:pt-24">
+        <div className="soft-panel rounded-[2.75rem] px-6 py-8 sm:px-8 lg:px-12 lg:py-12">
+          <div className="max-w-4xl">
+            {trustBadge ? (
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-5 py-2 text-sm text-[#f7ead8] shadow-[0_8px_40px_rgba(0,0,0,0.18)]">
+                {trustBadge.icons?.length ? <span className="text-[#fde1b7]">{trustBadge.icons.join(" ")}</span> : null}
+                <span>{trustBadge.text}</span>
+              </div>
+            ) : null}
+
+            <h1 className="mt-8 max-w-5xl text-5xl font-semibold leading-[0.95] tracking-[-0.05em] sm:text-6xl lg:text-[6.2rem]">
+              <span className="glass-text block">{headline.line1}</span>
+              <span className="glass-text block">{headline.line2}</span>
+            </h1>
+
+            <p className="mt-7 max-w-3xl text-lg leading-8 text-[#f0e7db] sm:text-[1.35rem] sm:leading-9">
+              {subtitle}
+            </p>
           </div>
-        ) : null}
 
-        <div className="max-w-4xl">
-          <h1 className="text-4xl font-semibold tracking-tight text-white md:text-6xl lg:text-7xl">
-            <span className="block bg-gradient-to-r from-white via-emerald-100 to-cyan-200 bg-clip-text text-transparent">
-              {headline.line1}
-            </span>
-            <span className="mt-2 block bg-gradient-to-r from-emerald-200 via-cyan-200 to-sky-300 bg-clip-text text-transparent">
-              {headline.line2}
-            </span>
-          </h1>
-          <p className="mt-6 max-w-3xl text-base leading-8 text-slate-200 md:text-xl">
-            {subtitle}
-          </p>
+          {children ? <div className="mt-10">{children}</div> : null}
         </div>
-
-        {children ? <div className="mt-10">{children}</div> : null}
       </div>
     </section>
   );
