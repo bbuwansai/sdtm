@@ -58,7 +58,6 @@ export function ProductNarrative() {
               text="Give teams visibility into what changed, what was standardized, what still needs review, and what is ready for output."
               icon={ShieldCheck}
             />
-            />
           </div>
         </div>
 
