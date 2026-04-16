@@ -14,7 +14,7 @@ export default function HomePage() {
         trustBadge={{ text: "Built for biometrics, data management, and CRO teams.", icons: ["✦"] }}
         headline={{
           line1: "AI that turns raw clinical data",
-          line2: "AI that turns raw clinical data",
+          line2: "into FDA-ready SDTM in minutes.",
         }}
         subtitle="Upload raw clinical data. KlinAI identifies issues, standardizes what can be automated, generates mapping specifications, and delivers fully traceable CDISC-compliant SDTM datasets — ready for review and submission."
       >
