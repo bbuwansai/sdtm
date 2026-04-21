@@ -305,7 +305,7 @@ def execute_sdtm_only(job_id: str, domain: str, upload_path: Path, reviewed_huma
                 "python",
                 "pre_sdtm.py",
                 "--cleaned", str(domain_dir / "Layer1" / "dm_cleaned_output.csv"),
-                "--human-reviewed-rows", str(reviewed_human_path),
+                "--human-reviewed", str(reviewed_human_path),
                 "--layer1-cmd", f"python {domain_dir / 'Layer1' / 'main2.py'} --source {{source}} --outdir {{outdir}}",
                 "--outdir", str(pre_sdtm_out),
                 "--refreshed-cleaned", "dm_cleaned_output.csv",
